@@ -14,7 +14,7 @@ function makeEmail(call: SavedCall, detail: CallDetail) {
   const evidence = warning?.evidence.map((item) => `“${item.quote}”`).join(" · ") || "No quoted evidence available.";
   return {
     subject: `SOS: ${CHILD.name} may need help during a call`,
-    body: `This is a Call Safety demo SOS notification.\n\nChild account: ${CHILD.name}, age ${CHILD.age}\nCall reference: ${call.roomId}\nThreat threshold: ${riskScore(detail.warnings)}/100\nDetected concern: ${warning?.title || "Suspicious call"}\nEvidence: ${evidence}\n\nPlease contact ${CHILD.name} through a separate trusted channel and check their safety. This is an automated warning and must be verified.`,
+    body: `This is a SadaSafe demo SOS notification.\n\nChild account: ${CHILD.name}, age ${CHILD.age}\nCall reference: ${call.roomId}\nThreat threshold: ${riskScore(detail.warnings)}/100\nDetected concern: ${warning?.title || "Suspicious call"}\nEvidence: ${evidence}\n\nPlease contact ${CHILD.name} through a separate trusted channel and check their safety. This is an automated warning and must be verified.`,
   };
 }
 

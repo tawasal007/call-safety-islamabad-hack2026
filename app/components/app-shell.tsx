@@ -24,11 +24,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => compact.removeEventListener("change", sync);
   }, []);
   const inCall = pathname.startsWith("/call/");
-  const current = inCall ? "Your call" : tabs.find((tab) => tab.href === pathname)?.label ?? "Call Safety";
+  const current = inCall ? "Your call" : tabs.find((tab) => tab.href === pathname)?.label ?? "SadaSafe";
   return <div className={`application${collapsed ? " sidebar-collapsed" : ""}`}>
     <a className="skip-link" href="#app-content">Skip to content</a>
     <aside className="app-sidebar" aria-label="Main navigation">
-      <Link href="/" className="sidebar-brand" aria-label="Call Safety home"><span className="wordmark-mark"><Shield size={20} /></span><span className="sidebar-label">Call Safety<span className="brand-caption">A little more peace of mind.</span></span></Link>
+      <Link href="/" className="sidebar-brand" aria-label="SadaSafe home"><span className="wordmark-mark"><Shield size={20} /></span><span className="sidebar-label">SadaSafe<span className="brand-caption">Always safe · ہمیشہ محفوظ</span></span></Link>
       <button className="menu-button" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand menu" : "Collapse menu"} aria-expanded={!collapsed} aria-controls="main-tabs"><Menu size={20} /><span className="sidebar-label">Menu</span><span className="menu-chevron sidebar-label">{collapsed ? <ChevronRight size={14} /> : <X size={14} />}</span></button>
       <p className="sidebar-section sidebar-label">WORKSPACE</p>
       <nav id="main-tabs" className="sidebar-tabs">{tabs.map(({ href, label, icon: Icon }) => {
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="sidebar-bottom"><div className="sidebar-note sidebar-label"><Shield size={19} /><strong>Stay in the conversation.</strong><p>Keep an eye on what matters, with live captions and safety warnings.</p></div><div className="sidebar-signature"><span className="profile-avatar">CS</span><span className="sidebar-label"><strong>Your workspace</strong><small>Browser audio calls</small></span></div></div>
     </aside>
     <div className="application-body">
-      <header className="workspace-topbar"><div className="workspace-breadcrumb"><Shield size={16} /><span>Call Safety</span><ChevronRight size={14} /><strong>{current}</strong></div><div className="header-tools">{!inCall && pathname !== "/calls" && <Link href="/calls" className="topbar-call"><Phone size={15} /><span>Make a call</span><ArrowUpRight size={14} /></Link>}</div></header>
+      <header className="workspace-topbar"><div className="workspace-breadcrumb"><Shield size={16} /><span>SadaSafe</span><ChevronRight size={14} /><strong>{current}</strong></div><div className="header-tools">{!inCall && pathname !== "/calls" && <Link href="/calls" className="topbar-call"><Phone size={15} /><span>Make a call</span><ArrowUpRight size={14} /></Link>}</div></header>
       <div id="app-content" className="application-content" tabIndex={-1}>{children}</div>
     </div>
   </div>;

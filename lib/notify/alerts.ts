@@ -34,9 +34,9 @@ export function buildAlertMessage(warning: Warning, options: { appUrl: string; k
   const quotes = warning.evidence.slice(0, 3).map((item) => `"${item.quote}"`).join(" / ");
   const concern = warning.concernLevel[0].toUpperCase() + warning.concernLevel.slice(1);
   return {
-    subject: `Call Safety alert: ${warning.title} (${concern} concern)`,
+    subject: `SadaSafe alert: ${warning.title} (${concern} concern)`,
     body: [
-      options.trigger === "call_end" ? "A call has ended with a serious warning." : "Call Safety detected a possible risk during a live call.",
+      options.trigger === "call_end" ? "A call has ended with a serious warning." : "SadaSafe detected a possible risk during a live call.",
       `Time: ${time} (Pakistan time)`,
       `Detected: ${warning.categories.map((category) => CATEGORY_LABELS[category]).join(", ")}`,
       `Concern level: ${concern}`,

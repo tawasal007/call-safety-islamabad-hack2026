@@ -15,7 +15,7 @@ function reportText(call: ReportCall, detail: CallDetail) {
     ? sortWarnings(detail.warnings).map((warning) => `- ${warning.title} (${warning.concernLevel}): ${warning.evidence.map((item) => `“${item.quote}”`).join("; ")}`).join("\n")
     : "- No alert was generated for this call.";
   const transcript = detail.segments.map((segment) => `${segment.speaker === call.role ? "Participant" : "Other person"}: ${segment.text}`).join("\n") || "No saved transcript.";
-  return `CALL SAFETY — CRIME REPORT\n\nCall reference: ${call.roomId}\nThreat threshold: ${score}/100 (${riskLabel(score)})\nMonitoring: ${detail.monitoringStatus}\n\nDetected concerns\n${warningText}\n\nTranscript evidence\n${transcript}\n\nImportant: This is an automated safety report based on a browser call transcript. It does not verify a crime or replace police investigation.`;
+  return `SADASAFE — CRIME REPORT\n\nCall reference: ${call.roomId}\nThreat threshold: ${score}/100 (${riskLabel(score)})\nMonitoring: ${detail.monitoringStatus}\n\nDetected concerns\n${warningText}\n\nTranscript evidence\n${transcript}\n\nImportant: This is an automated safety report based on a browser call transcript. It does not verify a crime or replace police investigation.`;
 }
 
 export default function CrimeReportsPage() {
