@@ -1,2 +1,10 @@
-livekit-agents~=1.8.6
-python-dotenv>=1.0
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+livekit>=1.0,<2
+livekit-api>=1.0,<2
+livekit-agents>=1.8.6,<2
+faster-whisper>=1.1,<2
+numpy>=1.26,<3
+webrtcvad-wheels>=2.0.14,<3
+python-dotenv>=1.0,<2
+httpx>=0.28,<1

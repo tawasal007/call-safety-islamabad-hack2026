@@ -1,10 +1,16 @@
 # Tasks
 
-**Project:** Islamabad Hack 2026 — Call Safety web app.
-**Event:** Saturday, 10 October 2026, 9:30 AM–6:30 PM, BIIT, Rawalpindi.
-**Time zone:** Asia/Karachi.
-**Team size:** Four members.
-**Status:** Audio call, live transcription with Call Logs, and the English/Urdu/Punjabi language module are implemented; contextual scam/threat detection and the warning panel remain planned.
+**Implementation update:** audio calling and the local transcription/translation,
+keyword-evidence and saved-history module are implemented. Current setup and
+verification are documented in [TRANSCRIPTION.md](TRANSCRIPTION.md). The iteration
+schedule below is the original team plan, not a current completion tracker.
+
+**Project:** Islamabad Hack 2026 — Call Safety Website.  
+**Event:** Saturday, 10 October 2026, 9:30 AM–6:30 PM, BIIT, Rawalpindi.  
+**Time zone:** Asia/Karachi.  
+**Team size:** Four members.  
+**Development environment:** Kiro.  
+**Status:** Planning only; application development has not started.
 
 Read these documents in order: [requiremnts.md](requiremnts.md) -> [design.md](design.md) -> [tasks.md](tasks.md).
 
@@ -18,27 +24,7 @@ Read these documents in order: [requiremnts.md](requiremnts.md) -> [design.md](d
 
 The iteration/task IDs are execution references. Within an iteration, follow dependency order; rows explicitly marked parallel may be done simultaneously by their assigned human team members. Every iteration includes an individual sequence for each of the four members.
 
-Review [requiremnts.md](requiremnts.md) for acceptance criteria and [design.md](design.md) for interfaces before writing code. Mark task completion in the team tracker only after its stated output works; save a working checkpoint at every gate.
-
-## Current progress
-
-### Done
-
-- **Two-person audio call (REQ-01–REQ-04).** Signed two-hour invitations, server-assigned caller/receiver roles, short-lived microphone-only LiveKit tokens, two-way audio, mute, speaker toggle, end-call, participant/connection status, live waveform, light/dark themes. Deployed to Vercel.
-- **Live transcription and Call Logs (REQ-05, partial).** Silent Python worker subscribes to microphone tracks and streams to LiveKit Inference STT. Interim/final segments shown live; final segments stored (local JSONL/TXT in dev, Vercel Blob in production) and listed in the Call Logs tab with signed room-specific archive keys.
-- **English/Urdu/Punjabi language module.** Language is chosen at room creation and carried in the signed invitation. The worker selects Deepgram Nova-3 for English and Cartesia Ink Whisper for Urdu/Punjabi, then translates each finished turn to English via an LLM. Original text and English translation are both stored and shown in a live translation feed. Urdu passed a recorded-audio production probe; Punjabi recognition was poor on two recorded samples and needs further validation.
-
-### Left to build
-
-- **Contextual multi-category detector (REQ-06).** Credential theft, financial fraud, threats, extortion, kidnapping claims, and coercion over finalized segments plus bounded recent context.
-- **Explainable live warnings (REQ-07) and warning transport.** Validated warning events (categories, concern level, exact evidence, explanation, suggested action, uncertainty) delivered to the receiver while audio continues.
-- **Appropriate interpretation and uncertainty (REQ-08, REQ-09).** Negative cases stay quiet; "Possible scam" wording for fraud; kidnapping claims never declared fake or genuine.
-- **Graceful monitoring failures (REQ-10).** STT/AI failure leaves audio running and shows an explicit degraded/unavailable state.
-- **Receiver warning panel UI (REQ-12).** Prominent risk panel, evidence highlighting, and panel states (waiting, none-detected-yet, warning, unavailable, ended). Monitoring is currently labelled inactive.
-- **Reliability hardening (REQ-11).** Deduplicate warnings, reject stale-session results, prevent duplicate workers, and complete three consecutive clean end-to-end runs on two devices.
-- **AI provider selection.** Confirm detector provider access, credits, and a small structured request before Iteration 3.
-
-The iterations below are the original plan. The audio and transcription foundations are implemented; detection work begins at Iteration 3.
+Review [requiremnts.md](requiremnts.md) for acceptance criteria and [design.md](design.md) for interfaces before writing code. Mark task completion in the team tracker only after its stated output works; save a working checkpoint at every gate. All tasks below are planned, not completed.
 
 ## Team roles and ownership
 
@@ -268,8 +254,8 @@ Read-only checks at handover found Kiro 1.2.37, Node 24.14.0, npm 11.9.0, Python
 ### Final delivery checklist
 
 - [ ] All project development performed on-site using Kiro.
-- [x] Two-person audio call demonstrated on separate devices.
-- [x] Live transcription demonstrated from actual room audio (currently both speakers; caller-only attribution for detection still pending).
+- [ ] Two-person audio call demonstrated on separate devices.
+- [ ] Caller-only live transcription demonstrated from actual room audio.
 - [ ] Scam/credential request warning demonstrated.
 - [ ] Threat or kidnapping/extortion claim warning demonstrated.
 - [ ] Harmless advice and topic mentions tested without strong warnings.
@@ -279,6 +265,5 @@ Read-only checks at handover found Kiro 1.2.37, Node 24.14.0, npm 11.9.0, Python
 - [ ] Three consecutive complete runs passed.
 - [ ] Startup/restart instructions, configuration names, and test results documented.
 - [ ] Secrets excluded from browser code, logs, links, and committed files.
-- [x] English/Urdu/Punjabi language module with per-turn English translation implemented; Punjabi accuracy still needs improvement.
 - [ ] Known limitations and emergency fallback accurately described.
 - [ ] Repository/project and submission requirements ready.

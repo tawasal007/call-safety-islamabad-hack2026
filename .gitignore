@@ -7,8 +7,17 @@ node_modules/
 *.log
 local-livekit/
 .vercel/
-.venv-worker/
-data/call-logs/
+worker/.venv/
+worker/.uv-cache/
+worker/models/
+worker/data/
 worker/__pycache__/
+worker/test-output/
+.deployment-tools/
+**/__pycache__/
+
+.vercel
+.env*
+!.env.example
 
 .env*

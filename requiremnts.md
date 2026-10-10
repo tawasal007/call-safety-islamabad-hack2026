@@ -1,10 +1,16 @@
 # Requirements
 
-**Project:** Islamabad Hack 2026 — Call Safety web app.
-**Event:** Saturday, 10 October 2026, 9:30 AM–6:30 PM, BIIT, Rawalpindi.
-**Time zone:** Asia/Karachi.
-**Team size:** Four members.
-**Status:** Audio call milestone implemented; transcription and detection remain planned.
+**Current transcription scope:** audio calls are implemented. The newer
+[TRANSCRIPTION.md](TRANSCRIPTION.md) covers both-speaker live captions, Urdu/English
+translation, reverse Urdu text translation, keyword evidence and saved per-call logs.
+Its language/storage scope supersedes the original deferred items below.
+
+**Project:** Islamabad Hack 2026 — Call Safety Website.  
+**Event:** Saturday, 10 October 2026, 9:30 AM–6:30 PM, BIIT, Rawalpindi.  
+**Time zone:** Asia/Karachi.  
+**Team size:** Four members.  
+**Development environment:** Kiro.  
+**Status:** Planning only; application development has not started.
 
 Read these documents in order: [requiremnts.md](requiremnts.md) -> [design.md](design.md) -> [tasks.md](tasks.md).
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Call Safety — private browser audio calls",
-  description: "Two-person browser audio calls, built as the foundation for live, evidence-based safety warnings.",
+  title: "Guardian Link — Family calls & live captions",
+  description: "Two-person audio calls with live English and Urdu captions, translation, keyword evidence and separate saved logs.",
   referrer: "no-referrer",
 };
 

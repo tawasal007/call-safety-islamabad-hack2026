@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { liveKitConfig, makeParticipantToken } from "@/lib/livekit";
-import { admitParticipantWithLanguage, issueArchiveAccess, sessionSigningConfigured } from "@/lib/sessions";
+import { admitParticipant, sessionSigningConfigured } from "@/lib/sessions";
+import { issueHistoryAccess } from "@/lib/history-access";
 
 export const runtime = "nodejs";
 
@@ -30,21 +31,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Room and invitation are required." }, { status: 400 });
   }
 
-  const admission = admitParticipantWithLanguage(body.roomId, body.accessKey);
-  if (!admission) {
+  const role = admitParticipant(body.roomId, body.accessKey);
+  if (!role) {
     return NextResponse.json(
       { error: "This call invitation is invalid or has expired." },
       { status: 403 },
     );
   }
 
-  const token = await makeParticipantToken(body.roomId, admission.role, config, admission.language);
+  const token = await makeParticipantToken(body.roomId, role, config);
   return NextResponse.json({
     token,
-    archiveAccessKey: issueArchiveAccess(body.roomId),
     serverUrl: config.browserUrl,
-    role: admission.role,
-    language: admission.language,
+    role,
     roomId: body.roomId,
+    historyAccessKey: issueHistoryAccess(body.roomId),
   }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -1,4 +1,92 @@
-# Audio milestone setup status — 10 October 2026
+# Project setup status — 10 October 2026
+
+## Current English and Urdu streaming deployment
+
+Both fixed languages use LiveKit/Deepgram Nova-3 streaming. Translations in either
+direction use LiveKit/Google Gemini 3.1 Flash Lite separately from native captions.
+Live captions default to English + Urdu; Urdu is marked as a live-caption option.
+Auto remains the slower Whisper path. The laptop stores separate private logs.
+The existing authenticated worker and approved Cloudflare tunnel remain running.
+
+Current production deployment: `dpl_2TBxrFsV1sSVewGTH1w3GZdr4ihA` at
+https://call-safety-urdu.vercel.app. LiveKit Inference quota/credits apply.
+
+Two simultaneous synthetic Urdu speakers: first captions 1.62–1.94 seconds,
+final latency 0.07–1.96 seconds, text translation 1.52–3.33 seconds. One stream had
+one word error (4.5% normalized WER); the other matched after spelling/diacritic
+normalization. Mixed Urdu/English test: first captions 1.06/1.91 seconds,
+finals 0.23–0.28 seconds, translation 1.33–1.95 seconds. Bilingual logs, speaker
+attribution, caller evidence, silence handling and room cleanup passed. Human
+accent/noise accuracy remains unmeasured. Benchmark JSON files are in
+`worker/test-output/streaming-benchmark-{ur,mixed}.json`.
+Thirty Python tests, six Node tests, TypeScript and production builds pass.
+Synthetic translation probes preserved negation, the 500-rupee amount, and
+translated quoted instructions rather than following them.
+
+The following English-only and Whisper sections record earlier milestones.
+
+## Earlier English-only streaming deployment
+
+English now uses LiveKit Inference / Deepgram Nova-3 with one stream per speaker;
+it bypasses CPU Whisper recognition. English is selected by default, browser audio
+processing is explicitly enabled, and live captions initially show English.
+Urdu/Auto still use the slower Whisper path. Per-call logs and keyword evidence
+remain intact. English audio is processed by LiveKit/Deepgram; Urdu text translation
+and SQLite logs stay on the laptop.
+
+Production: https://call-safety-urdu.vercel.app, deployment
+`dpl_BzG9ueKTHS4myv5eKYjoCcbSYf84`. The existing authenticated laptop worker and
+approved Cloudflare tunnel remain required. LiveKit Inference quota/credits apply.
+
+The deployed real RTC test used two simultaneous synthetic English speakers:
+first interim 2.03–2.06 seconds, final segment latency 0.25–0.30 seconds, 0% word
+error rate on the 17-word fixture. Speaker attribution, silence, keyword evidence,
+protected separate logs, eventual Urdu translations and empty-room cleanup passed.
+This is a limited synthetic test; accuracy on representative human recordings
+still needs evaluation. The benchmark is in `worker/test-output/streaming-benchmark.json`.
+Twenty-seven Python tests, six Node tests, TypeScript, and the production build pass.
+The audio-relay regression checks prevent recognition from throttling audio frames;
+disconnect tests check visible failure and cleanup for retry.
+
+The sections below document earlier Whisper/audio milestones.
+
+## Earlier local Whisper English–Urdu implementation
+
+The persistent caption worker and Next.js frontend are configured locally. The
+app is running at `http://localhost:3010`, with the authenticated worker at
+`127.0.0.1:8001`. Whisper small CPU/int8 and the local NLLB English-to-Urdu model
+are downloaded. Punjabi is deferred. See [TRANSCRIPTION.md](TRANSCRIPTION.md)
+for reproducible setup and deployment instructions.
+
+Verified: real LiveKit microphone publication from two synthetic-audio participants
+produced live caption events, separate caller/receiver attribution, Urdu and English
+output, contextual caller keyword evidence, protected saved logs, and worker release
+after both participants left. English and Urdu fixtures both passed. The saved Urdu
+log was inspected through the frontend. Twenty-one Python tests, six Node tests,
+TypeScript and a Next.js production build pass.
+The UTF-8 text export preserves original Urdu, both translations and keyword
+evidence. The 438px-wide history view fits without horizontal overflow.
+Final caption latency in the latest synthetic tests was 6–11 seconds for Urdu
+and 4–5 seconds for English; Urdu text translation from English follows separately.
+
+These tests establish that the complete audio-to-log pipeline works. They do not
+establish production Urdu accuracy: the laptop's small CPU model made some Urdu
+spelling and translation errors. Representative human speech, code switching,
+accents, noise and two physical devices still need evaluation. GPU-backed
+medium/large-v3 can be benchmarked for higher accuracy and lower latency.
+The in-app browser could render history but its WebRTC implementation rejected
+the LiveKit connection configuration; real RTC ingestion was verified with the
+Python participants instead.
+
+The frontend is now deployed in `priminuxx/call-safety-urdu` at
+https://call-safety-urdu.vercel.app. Vercel compilation, public homepage access and
+the production room/token API smoke test passed. Explicit Cloudflare data-routing
+approval was received and the temporary worker tunnel is connected. Both worker
+settings are configured in Vercel and deployment `dpl_FeU3RRWwQ42zncjg9AkRoCYkCYgV`
+is ready. A real phone call delivered audio frames to a diagnostic receiver; the
+Vercel caption-start and protected log APIs returned 200, active monitoring, and
+saved bilingual segments. The earlier deployment information below records the audio-only
+milestone in the previous account.
 
 ## Deployed to Vercel
 
@@ -65,4 +153,5 @@ Verification: invalid invitation input shows feedback without navigation; a vali
 
 The Next.js production deployment and server variables are configured. Public API checks passed at the production domain without any Vercel authentication: room creation, both role tokens, microphone-only grants, no-store responses and invalid/malformed admission. Test the resulting HTTPS link on two physical devices with headphones, ideally on different networks. Physical audibility has not been verified by the automated browser checks.
 
-This status covers the requested **two-person audio-call milestone**. Live transcription and scam/threat detection remain the next team milestones; the interface labels monitoring as inactive. No persistent transcription worker has been created.
+The preceding deployment checks cover the earlier **two-person audio-call milestone**.
+The current local transcription implementation is described at the top of this file.

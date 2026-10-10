@@ -8,4 +8,5 @@ The complete plan is now divided into three documents:
 
 Read them in that order. The requested spelling `requiremnts.md` is preserved.
 
-This remains planning work only. Application development has not started.
+Audio calling and the local caption/translation module are now implemented.
+See [TRANSCRIPTION.md](TRANSCRIPTION.md) for the current transcription setup and scope.

@@ -1,6 +1,5 @@
 import { AccessToken, TrackSource } from "livekit-server-sdk";
-import type { CallLanguage, ParticipantRole } from "@/lib/sessions";
-import { RoomAgentDispatch, RoomConfiguration } from "@livekit/protocol";
+import type { ParticipantRole } from "@/lib/sessions";
 
 type LiveKitConfig = {
   browserUrl: string;
@@ -28,7 +27,6 @@ export async function makeParticipantToken(
   roomId: string,
   role: ParticipantRole,
   config: LiveKitConfig,
-  language: CallLanguage = "en",
 ): Promise<string> {
   const token = new AccessToken(config.apiKey, config.apiSecret, {
     identity: `${role}-${roomId}`,
@@ -42,9 +40,6 @@ export async function makeParticipantToken(
     canPublishSources: [TrackSource.MICROPHONE],
     canSubscribe: true,
     canPublishData: false,
-  });
-  token.roomConfig = new RoomConfiguration({
-    agents: [new RoomAgentDispatch({ agentName: "call-transcriber", metadata: JSON.stringify({ language }) })],
   });
   return token.toJwt();
 }

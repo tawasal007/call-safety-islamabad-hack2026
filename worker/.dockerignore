@@ -1,0 +1,7 @@
+.venv
+.uv-cache
+models
+data
+test-output
+__pycache__
+.env

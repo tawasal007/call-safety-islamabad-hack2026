@@ -4,25 +4,23 @@ import {
   LiveKitRoom, RoomAudioRenderer, StartAudio, TrackToggle,
   useConnectionState, useIsSpeaking, useLocalParticipant, useMultibandTrackVolume,
   useParticipants, useRoomContext,
-  useTranscriptions,
 } from "@livekit/components-react";
-import { Check, Copy, FileText, Headphones, Info, Mic, MicOff, Phone, PhoneOff, Shield, ShieldCheck, UserPlus, Volume2, VolumeX, X } from "lucide-react";
+import { Check, Copy, Headphones, Info, Mic, MicOff, Phone, PhoneOff, Shield, ShieldCheck, UserPlus, Volume2, VolumeX, X } from "lucide-react";
 import { ConnectionState, Track, type Participant } from "livekit-client";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "../../components/theme-toggle";
-import { rememberCall } from "@/lib/call-log-client";
-import type { CallLanguage } from "@/lib/sessions";
-import type { TranscriptSegment } from "@/lib/call-logs";
+import { LiveCaptions } from "../../components/live-captions";
+import { rememberCall } from "../../components/call-history-access";
 
 type JoinResponse = {
   token: string;
   serverUrl: string;
   roomId: string;
   role: "caller" | "receiver";
-  archiveAccessKey: string;
-  language: CallLanguage;
+  historyAccessKey: string;
+  accessKey: string;
   error?: string;
 };
 
@@ -70,11 +68,13 @@ function LiveVoiceActivity({ localParticipant, remoteParticipant, remoteName }: 
   );
 }
 
-function ConnectedCall({ role, language, roomId, archiveAccessKey, onEnd, onError, onInvite }: {
+function ConnectedCall({ role, roomId, accessKey, historyKey, language, onLanguageChange, onEnd, onError, onInvite }: {
   role: "caller" | "receiver";
-  language: CallLanguage;
   roomId: string;
-  archiveAccessKey: string;
+  accessKey: string;
+  historyKey: string;
+  language: string;
+  onLanguageChange: (language: string) => void;
   onEnd: () => void;
   onError: (message: string) => void;
   onInvite?: () => void;
@@ -86,36 +86,12 @@ function ConnectedCall({ role, language, roomId, archiveAccessKey, onEnd, onErro
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
   const [ending, setEnding] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [translatedSegments, setTranslatedSegments] = useState<TranscriptSegment[]>([]);
-  const [translationError, setTranslationError] = useState(false);
   const startedAt = useRef<number | null>(null);
   const otherRole = role === "caller" ? "receiver" : "caller";
-  const otherParticipant = participants.find((participant) => participant.identity.startsWith(`${otherRole}-`));
+  const otherParticipant = participants.find((participant) => participant.identity === `${otherRole}-${roomId}`);
   const connected = state === ConnectionState.Connected;
   const together = connected && !!otherParticipant;
   const otherName = otherRole === "caller" ? "Caller" : "Receiver";
-  const transcriptions = useTranscriptions();
-  const callerTrackSid = participants.find((participant) => participant.identity.startsWith("caller-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
-  const receiverTrackSid = participants.find((participant) => participant.identity.startsWith("receiver-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
-  const visibleTranscriptions = transcriptions.filter((item) => item.text.trim()).slice(-12);
-
-  useEffect(() => {
-    if (language === "en") return;
-    let active = true;
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/call-logs/${encodeURIComponent(roomId)}`, {
-          headers: { Authorization: `Bearer ${archiveAccessKey}` }, cache: "no-store",
-        });
-        if (!response.ok) throw new Error("Translation feed unavailable");
-        const data = await response.json() as { segments: TranscriptSegment[] };
-        if (active) { setTranslatedSegments(data.segments.slice(-12)); setTranslationError(false); }
-      } catch { if (active) setTranslationError(true); }
-    };
-    void load();
-    const timer = window.setInterval(() => { void load(); }, 2000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [archiveAccessKey, language, roomId]);
 
   // Start when the second person joins; keep elapsed time until this call ends.
   useEffect(() => {
@@ -188,25 +164,16 @@ function ConnectedCall({ role, language, roomId, archiveAccessKey, onEnd, onErro
           <div className={`participant-row${!otherParticipant ? " is-waiting" : ""}`}><span className="participant-avatar participant-avatar-alt">{otherName[0]}</span><span><strong>{otherName}</strong><small>{otherParticipant ? "In the call" : "Waiting to join"}</small></span><i className={`participant-dot${otherParticipant ? " is-online" : ""}`} /></div>
         </div>
         <div className="context-divider" />
+        <label className="speech-language">Your spoken language<select value={language} onChange={event => onLanguageChange(event.target.value)}><option value="en">English — live captions</option><option value="ur">Urdu — live captions</option><option value="auto">Auto English / Urdu — slower</option></select></label>
+        {!isMicrophoneEnabled && <p className="headphone-hint"><Mic size={16} />Your microphone is off. Select Unmute to speak. Both voices are transcribed and saved in this call’s log.</p>}
         <div className="safety-context">
-          <div className="safety-context-top"><FileText size={18} /><strong>Live transcript</strong><span>{visibleTranscriptions.length ? "Live" : "Waiting"}</span></div>
-          {language !== "en" && <p className="translation-mode">{language === "ur" ? "Urdu" : "Punjabi"} speech · English translation after each turn</p>}
-          <div className="transcript-feed" role="log" aria-label="Live transcript" aria-live="polite">
-            {visibleTranscriptions.length ? visibleTranscriptions.map((item) => {
-              const trackSid = item.streamInfo.attributes?.["lk.transcribed_track_id"];
-              const speaker = trackSid === callerTrackSid ? "Caller" : trackSid === receiverTrackSid ? "Receiver" : "Speaker";
-              const final = item.streamInfo.attributes?.["lk.transcription_final"] === "true";
-              return <p key={item.streamInfo.attributes?.["lk.segment_id"] || item.streamInfo.id} className={`transcript-line${final ? "" : " is-interim"}`}><strong>{speaker}</strong><span>{item.text}</span></p>;
-            }) : <p className="transcript-empty">Speech will appear here after the transcription worker joins. Speak clearly in {language === "en" ? "English" : language === "ur" ? "Urdu" : "Punjabi"} to test.</p>}
-          </div>
-          {language !== "en" && <div className="translation-feed" aria-label="English translation" aria-live="polite">
-            <h3>English translation</h3>
-            {translationError ? <p className="translation-unavailable">Translation feed is unavailable. The call continues.</p> : translatedSegments.length ? translatedSegments.map((segment) => <p key={segment.id} className="translation-line"><strong>{segment.speaker}</strong><span>{segment.translation || "Translation unavailable for this turn"}</span></p>) : <p className="transcript-empty">Waiting for a completed speaking turn…</p>}
-          </div>}
-          <p className="transcript-note">Automated speech recognition and translation may contain mistakes. Final lines are saved in Call Logs. Threat and scam alerts are not active yet.</p>
+          <div className="safety-context-top"><Shield size={18} /><strong>Caption monitoring</strong></div>
+          <p>Both speakers have separate captions. Highlighted phrases use limited contextual keyword rules. Scoring and crime reports are separate modules.</p>
+          <Link href={`/history/${roomId}`}>Open this call’s saved log ↗</Link>
         </div>
         <p className="headphone-hint"><Headphones size={16} />Use headphones when both devices are nearby.</p>
       </aside>
+      <LiveCaptions roomId={roomId} accessKey={accessKey} historyKey={historyKey} language={language} />
       <RoomAudioRenderer volume={speakerEnabled ? 1 : 0} />
     </section>
   );
@@ -224,14 +191,20 @@ export default function CallPage() {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [language, setLanguage] = useState("en");
   const inviteDialog = useRef<HTMLDialogElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectedOnce = useRef(false);
+  const autoJoinedRoom = useRef<string | null>(null);
 
   useEffect(() => {
     if (!roomId) return;
     setInviteUrl(sessionStorage.getItem(`receiver-invite:${roomId}`));
+    const storedLanguage = sessionStorage.getItem(`speech-language:${roomId}`);
+    if (storedLanguage === "en" || storedLanguage === "ur" || storedLanguage === "auto") setLanguage(storedLanguage);
     if (invite) sessionStorage.setItem(`receiver-access:${roomId}`, invite);
   }, [roomId, invite]);
+
   useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
   useEffect(() => { if (ended) inviteDialog.current?.close(); }, [ended]);
 
@@ -240,6 +213,7 @@ export default function CallPage() {
     const accessKey = invite || sessionStorage.getItem(`caller-access:${roomId}`) || sessionStorage.getItem(`receiver-access:${roomId}`);
     if (!accessKey) { setError("You need an invitation link to join this call."); return; }
     setJoining(true);
+    connectedOnce.current = false;
     setError("");
     try {
       const response = await fetch("/api/rooms/join", {
@@ -247,12 +221,20 @@ export default function CallPage() {
       });
       const data = (await response.json()) as JoinResponse;
       if (!response.ok) throw new Error(data.error || "Could not join this call.");
-      rememberCall({ roomId: data.roomId, archiveAccessKey: data.archiveAccessKey, role: data.role, joinedAt: new Date().toISOString() });
-      setJoined(data);
+      rememberCall(roomId, data.historyAccessKey);
+      setJoined({ ...data, accessKey });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not join this call.");
     } finally { setJoining(false); }
   }, [roomId, invite]);
+
+  // A signed receiver link goes straight to the call. Microphone activation
+  // remains a user gesture, so opening an invitation cannot capture speech.
+  useEffect(() => {
+    if (!invite || autoJoinedRoom.current === roomId) return;
+    autoJoinedRoom.current = roomId;
+    void joinCall();
+  }, [roomId, invite, joinCall]);
 
   async function copyInvite() {
     if (!inviteUrl) return;
@@ -273,37 +255,50 @@ export default function CallPage() {
   return (
     <main className="call-shell">
       <header className="call-topbar">
-        <Link href="/" className="wordmark"><span className="wordmark-mark"><Shield size={18} /></span><span>Call Safety</span></Link>
-        <div className="header-tools"><Link href="/call-logs" className="header-link"><FileText size={15} />Call Logs</Link><div className="room-reference"><span>Room</span><strong>{roomId?.slice(-8)}</strong></div><ThemeToggle /></div>
+        <Link href="/" className="wordmark"><span className="wordmark-mark"><ShieldCheck size={20} /></span><span>Guardian<span style={{ color: "var(--accent)" }}>Link</span></span></Link>
+        <div className="header-tools"><div className="room-reference"><span>Room</span><strong>{roomId?.slice(-8)}</strong></div><ThemeToggle /></div>
       </header>
       {!joined && !ended && (
         <section className="prejoin-layout">
           <div className="prejoin-copy">
             <p className="prejoin-eyebrow">ROOM SETUP</p>
             <h1>Room {roomId?.slice(-8)}</h1>
-            <p>{inviteUrl ? "Share the invitation, then join the call." : "Join the call as the receiver."}</p>
+            <p>{inviteUrl ? "Share the invitation, then join the call." : joining ? "Opening your invitation…" : "Join the call as the receiver. Your microphone starts off."}</p>
             {inviteUrl && <div className="room-invitation"><label htmlFor="setup-invitation">Receiver invitation</label><input id="setup-invitation" value={inviteUrl} readOnly onFocus={(event) => event.target.select()} /><button className="secondary-button" onClick={copyInvite}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? "Copied" : "Copy invitation"}</button><span className="sr-only" role="status">{copied ? "Invitation copied" : ""}</span>{copyError && <p className="inline-error" role="alert">{copyError}</p>}</div>}
-            <div className="prejoin-facts"><span><Mic size={17} />Microphone required</span><span><Headphones size={17} />Headphones recommended</span><span><FileText size={17} />Both voices are transcribed and saved in Call Logs</span></div>
+            <div className="prejoin-facts"><span><Mic size={17} />Microphone required</span><span><Headphones size={17} />Headphones recommended</span></div>
           </div>
           <div className="join-card">
             <div className="join-card-icon"><Phone size={27} /></div>
             <p className="join-card-label">2 PEOPLE · AUDIO ONLY</p>
             <h2>Join call</h2>
-            <p>Allow microphone access when your browser asks.</p>
+            <p>Allow microphone access when your browser asks. Finalized captions and translations are saved in a separate call log.</p>
+            <label className="speech-language">Your spoken language<select value={language} onChange={e => setLanguage(e.target.value)}><option value="en">English — live captions</option><option value="ur">Urdu — live captions</option><option value="auto">Auto English / Urdu — slower processing</option></select></label>
             <button className="join-button" onClick={joinCall} disabled={joining}><Phone size={19} />{joining ? "Joining…" : "Join call"}</button>
           </div>
         </section>
       )}
       {joined && !ended && (
-        <LiveKitRoom token={joined.token} serverUrl={joined.serverUrl} connect={true} audio={true} video={false} onDisconnected={() => setEnded(true)} onError={(cause) => setError(cause.message)} onMediaDeviceFailure={() => setError("Microphone access failed. Check your browser permission and device settings.")}>
-          <ConnectedCall role={joined.role} language={joined.language || "en"} roomId={joined.roomId} archiveAccessKey={joined.archiveAccessKey} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
+        <LiveKitRoom token={joined.token} serverUrl={joined.serverUrl} connect={true} audio={joined.role === "receiver" ? false : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }} video={false} onConnected={() => { connectedOnce.current = true; }} onDisconnected={() => {
+          if (connectedOnce.current) setEnded(true);
+          else { setJoined(null); setError(current => current || "Call could not connect. Check your browser and network, then try again."); }
+        }} onError={(cause) => setError(cause.message)} onMediaDeviceFailure={() => setError("Microphone access failed. Check your browser permission and device settings.")}>
+          <ConnectedCall role={joined.role} roomId={roomId} accessKey={joined.accessKey} historyKey={joined.historyAccessKey} language={language} onLanguageChange={value => { setLanguage(value); sessionStorage.setItem(`speech-language:${roomId}`, value); }} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
         </LiveKitRoom>
       )}
       {ended && (
-        <section className="ended-card"><div className="ended-icon"><PhoneOff size={28} /></div><p className="prejoin-eyebrow">CALL FINISHED</p><h1>Call ended</h1><p>Your microphone is disconnected. The transcript remains available in Call Logs.</p><div className="ended-actions"><Link href="/call-logs" className="secondary-button"><FileText size={17} />View Call Logs</Link><Link href="/" className="join-button"><Phone size={19} />Start another call</Link></div></section>
+        <section className="ended-card">
+          <div className="ended-icon"><PhoneOff size={28} /></div>
+          <p className="prejoin-eyebrow">CALL FINISHED</p>
+          <h1>Call ended</h1>
+          <p>Your microphone is disconnected. Saved captions remain available; the worker finishes once both people leave.</p>
+          <div className="ended-actions">
+            <Link href={`/history/${roomId}`} className="secondary-button">View saved call log</Link>
+            <Link href="/" className="join-button" style={{ width: "auto" }}><Phone size={17} />Start another call</Link>
+          </div>
+        </section>
       )}
       {error && !ended && <p className="call-error" role="alert"><Info size={17} />{error}</p>}
-      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><span>Call speech can be transcribed and saved in Call Logs</span></footer>
+      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><Link href="/history">Call history</Link><span>Captions depend on the transcription service</span></footer>
       <dialog ref={inviteDialog} className="invite-dialog" aria-labelledby="invite-title" aria-describedby="invite-description">
         <button className="dialog-close" onClick={() => inviteDialog.current?.close()} aria-label="Close invitation"><X size={21} /></button>
         <span className="invite-dialog-icon"><UserPlus size={25} /></span>

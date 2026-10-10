@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
-import { admitArchiveAccess, admitParticipant, admitParticipantWithLanguage, createSession, issueArchiveAccess, sessionSigningConfigured } from "../lib/sessions.ts";
+import { admitParticipant, createSession, sessionSigningConfigured } from "../lib/sessions.ts";
 
 process.env.SESSION_SIGNING_SECRET = randomBytes(32).toString("hex");
 
@@ -18,18 +18,6 @@ test("signed invitations retain caller and receiver roles in a different server 
   `], { encoding: "utf8", env: { ...process.env, TEST_SESSION: JSON.stringify(session) } });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), ["caller", "receiver"]);
-});
-
-test("signed room language reaches both roles and cannot be forged", () => {
-  for (const language of ["en", "ur", "pa"] as const) {
-    const session = createSession(language);
-    assert.deepEqual(admitParticipantWithLanguage(session.roomId, session.callerAccessKey), { role: "caller", language });
-    assert.deepEqual(admitParticipantWithLanguage(session.roomId, session.receiverAccessKey), { role: "receiver", language });
-    const [payload, signature] = session.receiverAccessKey.split(".");
-    const forged = JSON.parse(Buffer.from(payload, "base64url").toString());
-    forged.language = "en";
-    if (language !== "en") assert.equal(admitParticipantWithLanguage(session.roomId, `${Buffer.from(JSON.stringify(forged)).toString("base64url")}.${signature}`), null);
-  }
 });
 
 test("rejects signature changes, role changes, another room, malformed and expired invitations", () => {
@@ -59,19 +47,4 @@ test("changing the signing secret invalidates old invitations", () => {
     process.env.SESSION_SIGNING_SECRET = "replace-with-a-random-64-character-hex-value";
     assert.equal(sessionSigningConfigured(), false);
   } finally { process.env.SESSION_SIGNING_SECRET = previous; }
-});
-
-test("call log access is room-scoped and remains valid after the invitation expires", () => {
-  const session = createSession();
-  const archiveKey = issueArchiveAccess(session.roomId);
-  assert.equal(admitArchiveAccess(session.roomId, archiveKey), true);
-  assert.equal(admitArchiveAccess(createSession().roomId, archiveKey), false);
-  const realNow = Date.now;
-  try {
-    Date.now = () => session.expiresAt + 1;
-    assert.equal(admitParticipant(session.roomId, session.callerAccessKey), null);
-    assert.equal(admitArchiveAccess(session.roomId, archiveKey), true);
-    Date.now = () => session.expiresAt + 31 * 24 * 60 * 60 * 1000;
-    assert.equal(admitArchiveAccess(session.roomId, archiveKey), false);
-  } finally { Date.now = realNow; }
 });
