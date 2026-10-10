@@ -127,3 +127,19 @@ test("provider configuration comes from LLM_* env vars", () => {
   const custom = providerFromEnv({ LLM_PROVIDER: "openrouter", LLM_API_KEY: "k", LLM_MODEL: "vendor/model" });
   assert.equal(custom.configured && custom.provider.model, "vendor/model");
 });
+test("one retry after a short rate limit; long rate limits fail fast as degraded", async () => {
+  const { runDetector } = await import("../lib/detector/detect.ts");
+  const valid = output();
+  let calls = 0;
+  const flaky = { name: "mock", model: "mock", async complete() {
+    calls += 1;
+    if (calls === 1) throw new ProviderError("Detector rate limited (HTTP 429)", true, 20);
+    return valid;
+  } };
+  const recovered = await runDetector(flaky, window, "seg-3", { timeoutMs: 2000 });
+  assert.equal(recovered.ok, true);
+  assert.equal(calls, 2);
+  const limited = { name: "mock", model: "mock", async complete(): Promise<string> { throw new ProviderError("Detector rate limited (HTTP 429)", true, 60_000); } };
+  const failed = await runDetector(limited, window, "seg-3", { timeoutMs: 2000 });
+  assert.deepEqual([failed.ok, !failed.ok && failed.kind], [false, "provider"]);
+});

@@ -33,6 +33,9 @@ const END_GRACE_MS = 60_000;
 
 const queues = new Map<string, Promise<unknown>>();
 const lastStatus = new Map<string, MonitoringStatus>();
+// Newest caller segment queued per room. Older queued segments are skipped:
+// the newer analysis includes them in its context window (saves LLM calls).
+const newestQueued = new Map<string, string>();
 
 /** Serial, per-room queue so analyses apply in order; separate rooms run in parallel. */
 export function enqueue<T>(roomId: string, task: () => Promise<T>): Promise<T> {
@@ -67,9 +70,12 @@ export function buildWindow(all: DetectorSegment[], focus: DetectorSegment, cont
 
 /** Analyses one finalized segment. Never throws; never blocks audio or transcription. */
 export function processSegment(roomId: string, segment: DetectorSegment, deps: PipelineDeps): Promise<SegmentOutcome> {
+  if (segment.speaker === "caller" && (newestQueued.get(roomId) ?? "") < segment.at) newestQueued.set(roomId, segment.at);
   return enqueue(roomId, async (): Promise<SegmentOutcome> => {
     try {
       if (segment.speaker !== "caller") return { kind: "skipped", reason: "receiver speech is context only" };
+      const newest = newestQueued.get(roomId);
+      if (newest && newest > segment.at) return { kind: "skipped", reason: "coalesced into a newer caller segment" };
       const ended = callEnded(await listEvents(deps.store, roomId));
       if (ended && Date.parse(segment.at) > Date.parse(ended.at) + END_GRACE_MS) return { kind: "skipped", reason: "stale: session already ended" };
       if (!deps.provider) {
@@ -119,6 +125,7 @@ export function finalizeCall(roomId: string, deps: PipelineDeps): Promise<void> 
       deps.log(`[monitor] finalize failed for ${roomId.slice(-8)}: ${error instanceof Error ? error.message : "unknown error"}`);
     } finally {
       lastStatus.delete(roomId);
+      newestQueued.delete(roomId);
     }
   });
 }
@@ -127,4 +134,5 @@ export function finalizeCall(roomId: string, deps: PipelineDeps): Promise<void> 
 export function resetMonitoringState() {
   queues.clear();
   lastStatus.clear();
+  newestQueued.clear();
 }

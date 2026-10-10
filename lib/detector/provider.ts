@@ -12,10 +12,12 @@ export interface LlmProvider {
 
 export class ProviderError extends Error {
   readonly retryable: boolean;
-  constructor(message: string, retryable: boolean) {
+  readonly retryAfterMs?: number;
+  constructor(message: string, retryable: boolean, retryAfterMs?: number) {
     super(message);
     this.name = "ProviderError";
     this.retryable = retryable;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -52,7 +54,8 @@ export function createOpenAiCompatibleProvider(options: {
         messages,
         temperature: 0,
         response_format: { type: "json_object" },
-        max_completion_tokens: 1500,
+        // Replies use ~120-200 tokens; a low cap also keeps free-tier token budgets usable.
+        max_completion_tokens: 600,
       };
       // gpt-oss models are reasoning models; low effort keeps latency down.
       if (options.name === "groq" && options.model.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
@@ -69,7 +72,10 @@ export function createOpenAiCompatibleProvider(options: {
         throw new ProviderError(`Detector request failed: ${error instanceof Error ? error.name : "network error"}`, true);
       }
       // Never include the response body or key in errors; status is enough.
-      if (response.status === 429) throw new ProviderError("Detector rate limited (HTTP 429)", true);
+      if (response.status === 429) {
+        const seconds = Number(response.headers.get("retry-after"));
+        throw new ProviderError("Detector rate limited (HTTP 429)", true, Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined);
+      }
       if (response.status >= 500) throw new ProviderError(`Detector provider error (HTTP ${response.status})`, true);
       if (!response.ok) throw new ProviderError(`Detector request rejected (HTTP ${response.status})`, false);
       let data: unknown;

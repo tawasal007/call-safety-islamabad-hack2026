@@ -1,5 +1,5 @@
 import { buildMessages } from "./prompt.ts";
-import type { LlmProvider } from "./provider.ts";
+import { ProviderError, type LlmProvider } from "./provider.ts";
 import type { DetectorResult, DetectorSegment } from "./types.ts";
 import { validateDetectorOutput } from "./validate.ts";
 
@@ -23,7 +23,17 @@ export async function runDetector(
     timer = setTimeout(() => { controller.abort(); reject(new DetectorTimeout()); }, options.timeoutMs);
   });
   try {
-    const raw = await Promise.race([provider.complete(buildMessages(window, focusSegmentId), { signal: controller.signal }), timeout]);
+    const messages = buildMessages(window, focusSegmentId);
+    const attempt = () => Promise.race([provider.complete(messages, { signal: controller.signal }), timeout]);
+    let raw: string;
+    try { raw = await attempt(); }
+    catch (error) {
+      // One retry for rate limits or transient errors, only if it fits the time budget.
+      const wait = error instanceof ProviderError && error.retryable ? Math.max(250, error.retryAfterMs ?? 1000) : Infinity;
+      if (Date.now() - started + wait >= options.timeoutMs - 500) throw error;
+      await Promise.race([new Promise((resolve) => setTimeout(resolve, wait)), timeout]);
+      raw = await attempt();
+    }
     const validated = validateDetectorOutput(raw, window);
     const latencyMs = Date.now() - started;
     return validated.ok ? { ok: true, result: validated.result, latencyMs } : { ok: false, kind: "invalid", reason: validated.reason, latencyMs };

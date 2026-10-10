@@ -181,3 +181,14 @@ test("a failed LiveKit publish never breaks analysis or storage", async () => {
     assert.equal((await listWarnings(h.store, h.roomId)).length, 1);
   } finally { await h.cleanup(); }
 });
+test("caller segments queued behind a slow analysis are coalesced into one LLM call", async () => {
+  const focuses: string[] = [];
+  const h = await harness((focus) => { focuses.push(focus.text); return none(); });
+  try {
+    const first = h.say("caller", "Hello there.");
+    const second = h.say("caller", "Are you free to talk?");
+    assert.deepEqual(await first, { kind: "skipped", reason: "coalesced into a newer caller segment" });
+    assert.equal((await second).kind, "analysed");
+    assert.deepEqual(focuses, ["Are you free to talk?"]);
+  } finally { await h.cleanup(); }
+});
