@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "./components/theme-toggle";
+import type { CallLanguage } from "@/lib/sessions";
 
 type CreateRoomResponse = {
   roomId: string;
@@ -19,12 +20,13 @@ export default function HomePage() {
   const [invitation, setInvitation] = useState("");
   const [createError, setCreateError] = useState("");
   const [joinError, setJoinError] = useState("");
+  const [language, setLanguage] = useState<CallLanguage>("en");
 
   async function createCall() {
     setCreating(true);
     setCreateError("");
     try {
-      const response = await fetch("/api/rooms", { method: "POST" });
+      const response = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ language }) });
       const data = (await response.json()) as CreateRoomResponse;
       if (!response.ok) throw new Error(data.error || "Could not create a room.");
       sessionStorage.setItem(["caller-access", data.roomId].join(":"), data.callerAccessKey);
@@ -72,6 +74,12 @@ export default function HomePage() {
             <span className="home-action-icon"><Phone size={23} /></span>
             <h2 id="create-heading">New room</h2>
             <p>Invite one other person to an audio call.</p>
+            <label className="language-choice" htmlFor="call-language">Speech language
+              <select id="call-language" value={language} onChange={(event) => setLanguage(event.target.value as CallLanguage)} disabled={creating}>
+                <option value="en">English</option><option value="ur">Urdu → English</option><option value="pa">Punjabi → English</option>
+              </select>
+            </label>
+            <p className="language-help">Both speakers use this language setting. Translations appear after each speaking turn.</p>
             <div className="room-capacity"><Users size={16} />2 people <span>·</span><Mic size={15} />Audio only</div>
             <button className="join-button" onClick={createCall} disabled={creating}><Phone size={17} />{creating ? "Creating room…" : "Create room"}</button>
             {createError && <p className="inline-error" role="alert">{createError}</p>}

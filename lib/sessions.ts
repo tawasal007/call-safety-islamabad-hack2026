@@ -4,8 +4,9 @@ const SESSION_LIFETIME_MS = 2 * 60 * 60 * 1000;
 const ARCHIVE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ParticipantRole = "caller" | "receiver";
+export type CallLanguage = "en" | "ur" | "pa";
 
-type Invitation = { version: 1; roomId: string; role: ParticipantRole; expiresAt: number };
+type Invitation = { version: 1 | 2; roomId: string; role: ParticipantRole; expiresAt: number; language?: CallLanguage };
 type ArchiveAccess = { version: 1; purpose: "call-log"; roomId: string; expiresAt: number };
 
 function signingSecret(): string {
@@ -24,20 +25,22 @@ function sign(payload: string): string {
   return createHmac("sha256", signingSecret()).update(`call-safety-invite:${payload}`).digest("base64url");
 }
 
-function issueInvitation(roomId: string, role: ParticipantRole, expiresAt: number): string {
-  const invitation: Invitation = { version: 1, roomId, role, expiresAt };
+function issueInvitation(roomId: string, role: ParticipantRole, expiresAt: number, language: CallLanguage): string {
+  const invitation: Invitation = { version: 2, roomId, role, expiresAt, language };
   const payload = Buffer.from(JSON.stringify(invitation)).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
 // Invitations work across serverless instances without an in-memory room map.
-export function createSession() {
+export function createSession(language: CallLanguage = "en") {
+  if (!["en", "ur", "pa"].includes(language)) throw new Error("Unsupported call language");
   const roomId = `call-${randomUUID()}`;
   const expiresAt = Date.now() + SESSION_LIFETIME_MS;
   return {
     roomId,
-    callerAccessKey: issueInvitation(roomId, "caller", expiresAt),
-    receiverAccessKey: issueInvitation(roomId, "receiver", expiresAt),
+    callerAccessKey: issueInvitation(roomId, "caller", expiresAt, language),
+    receiverAccessKey: issueInvitation(roomId, "receiver", expiresAt, language),
+    language,
     expiresAt,
   };
 }
@@ -46,6 +49,13 @@ export function admitParticipant(
   roomId: string,
   accessKey: string,
 ): ParticipantRole | null {
+  return admitParticipantWithLanguage(roomId, accessKey)?.role ?? null;
+}
+
+export function admitParticipantWithLanguage(
+  roomId: string,
+  accessKey: string,
+): { role: ParticipantRole; language: CallLanguage } | null {
   if (!/^call-[0-9a-f-]{36}$/.test(roomId) || !accessKey || accessKey.length > 2048) return null;
   const parts = accessKey.split(".");
   if (parts.length !== 2 || !parts.every(part => /^[A-Za-z0-9_-]+$/.test(part))) return null;
@@ -56,11 +66,13 @@ export function admitParticipant(
   try {
     const invitation = JSON.parse(Buffer.from(payload, "base64url").toString()) as Invitation;
     if (
-      invitation.version !== 1 || invitation.roomId !== roomId ||
+      (invitation.version !== 1 && invitation.version !== 2) || invitation.roomId !== roomId ||
       !Number.isSafeInteger(invitation.expiresAt) || invitation.expiresAt <= Date.now() ||
       (invitation.role !== "caller" && invitation.role !== "receiver")
     ) return null;
-    return invitation.role;
+    const language = invitation.version === 1 ? "en" : invitation.language;
+    if (language !== "en" && language !== "ur" && language !== "pa") return null;
+    return { role: invitation.role, language };
   } catch { return null; }
 }
 

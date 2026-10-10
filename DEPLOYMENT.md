@@ -13,7 +13,7 @@ npx --yes vercel@latest deploy --prod --yes --scope tawasal1
 
 Production environment variables are `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `SESSION_SIGNING_SECRET`, `TRANSCRIPT_WORKER_SECRET`, and `BLOB_READ_WRITE_TOKEN`. Keep them server-side. The private Blob store `call-safety-transcripts` is connected to Production and Preview. Vercel Functions write one private JSON file per final speech segment, and the authorized Call Logs API assembles the transcript and `.txt` download. Local development still writes to ignored `data/call-logs/` files. `.vercelignore` excludes credentials, local transcripts, the Python environment, and the local worker from deployment uploads.
 
-The transcription worker is not hosted by Vercel. It runs on this laptop, registers with LiveKit as `call-transcriber`, and must stay online for new calls to get live text. Start it in PowerShell:
+The transcription and translation worker is not hosted by Vercel. It runs on this laptop, registers with LiveKit as `call-transcriber`, and must stay online for new calls to get live text or English translations. Start it in PowerShell:
 
 ```powershell
 $env:TRANSCRIPT_APP_URL='https://call-safety-islamabad-hack2026.vercel.app'

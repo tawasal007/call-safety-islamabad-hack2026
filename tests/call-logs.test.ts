@@ -22,3 +22,15 @@ test("persists both speakers in order and deduplicates retries", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("exports source speech and English translation without inventing a failed translation", () => {
+  const roomId = `call-${randomUUID()}`;
+  const at = "2026-10-10T10:00:00.000Z";
+  const lines = formatCallLog(roomId, [
+    { id: randomUUID(), speaker: "caller", text: "مجھے اپنا او ٹی پی بتاؤ", at, language: "ur", translation: "Tell me your OTP." },
+    { id: randomUUID(), speaker: "receiver", text: "ਤੁਸੀਂ ਕੌਣ ਹੋ?", at, language: "pa", translation: null },
+  ]);
+  assert.match(lines, /English: Tell me your OTP\./);
+  assert.match(lines, /English translation unavailable/);
+  assert.match(lines, /مجھے اپنا او ٹی پی بتاؤ/);
+});

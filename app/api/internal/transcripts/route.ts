@@ -15,14 +15,20 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
   try { body = await request.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
-  const { roomId, id, speaker, text, at } = body;
+  const { roomId, id, speaker, text, at, language, translation } = body;
   if (typeof roomId !== "string" || !/^call-[0-9a-f-]{36}$/.test(roomId) ||
       typeof id !== "string" || !/^[0-9a-f-]{36}$/.test(id) ||
       (speaker !== "caller" && speaker !== "receiver") ||
       typeof text !== "string" || !text.trim() || text.length > 5000 ||
-      typeof at !== "string" || !Number.isFinite(Date.parse(at))) {
+      typeof at !== "string" || !Number.isFinite(Date.parse(at)) ||
+      (language !== undefined && language !== "en" && language !== "ur" && language !== "pa") ||
+      (translation !== undefined && translation !== null &&
+        (typeof translation !== "string" || !translation.trim() || translation.length > 5000))) {
     return NextResponse.json({ error: "Invalid transcript segment" }, { status: 400 });
   }
-  const saved = await saveTranscriptSegment(roomId, { id, speaker, text: text.trim(), at } as TranscriptSegment);
+  const saved = await saveTranscriptSegment(roomId, {
+    id, speaker, text: text.trim(), at, language,
+    translation: typeof translation === "string" ? translation.trim() : null,
+  } as TranscriptSegment);
   return NextResponse.json({ saved }, { headers: { "Cache-Control": "no-store" } });
 }

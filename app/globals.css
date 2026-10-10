@@ -262,6 +262,16 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .transcript-line.is-interim span { color: var(--quiet); font-style: italic; }
 .transcript-empty { color: var(--quiet) !important; line-height: 1.6; }
 .transcript-note { margin-bottom: 0 !important; }
+.language-choice { display: grid; gap: 8px; margin-top: 19px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.language-choice select { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--input-bg); color: var(--text); font: inherit; }
+.language-help { margin-top: 8px !important; }
+.translation-mode { margin: 12px 0 0 !important; color: var(--muted); font-size: 11px; }
+.translation-feed { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; max-height: 210px; overflow-y: auto; }
+.translation-feed h3 { margin: 0 0 8px; color: var(--text); font-size: 12px; }
+.translation-line { display: grid; gap: 3px; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--text); font-size: 12px; line-height: 1.45; }
+.translation-line strong, .translation-text strong { color: var(--amber); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.translation-unavailable { color: var(--quiet); font-size: 11px; }
+.log-segment .translation-text { margin-top: 6px; color: var(--text); }
 .ended-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .logs-workspace { width: calc(100% - 48px); max-width: 1100px; margin: 56px auto; }
 .logs-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 18px; margin-top: 30px; }

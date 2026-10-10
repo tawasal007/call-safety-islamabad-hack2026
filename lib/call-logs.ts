@@ -7,6 +7,8 @@ export type TranscriptSegment = {
   speaker: "caller" | "receiver";
   text: string;
   at: string;
+  language?: "en" | "ur" | "pa";
+  translation?: string | null;
 };
 
 const root = path.join(process.cwd(), "data", "call-logs");
@@ -57,7 +59,10 @@ export async function readCallLog(roomId: string): Promise<TranscriptSegment[]> 
 export function formatCallLog(roomId: string, segments: TranscriptSegment[]): string {
   const lines = [`Call ${roomId}`, "Live transcript (automated; may contain errors)", ""];
   for (const segment of segments) {
-    lines.push(`[${new Date(segment.at).toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}] ${segment.speaker === "caller" ? "Caller" : "Receiver"}: ${segment.text}`);
+    const speaker = segment.speaker === "caller" ? "Caller" : "Receiver";
+    lines.push(`[${new Date(segment.at).toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}] ${speaker}: ${segment.text}`);
+    if (segment.translation) lines.push(`  English: ${segment.translation}`);
+    else if (segment.language && segment.language !== "en") lines.push("  English translation unavailable");
   }
   return `${lines.join("\n")}\n`;
 }

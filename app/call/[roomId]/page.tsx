@@ -13,6 +13,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "../../components/theme-toggle";
 import { rememberCall } from "@/lib/call-log-client";
+import type { CallLanguage } from "@/lib/sessions";
+import type { TranscriptSegment } from "@/lib/call-logs";
 
 type JoinResponse = {
   token: string;
@@ -20,6 +22,7 @@ type JoinResponse = {
   roomId: string;
   role: "caller" | "receiver";
   archiveAccessKey: string;
+  language: CallLanguage;
   error?: string;
 };
 
@@ -67,8 +70,11 @@ function LiveVoiceActivity({ localParticipant, remoteParticipant, remoteName }: 
   );
 }
 
-function ConnectedCall({ role, onEnd, onError, onInvite }: {
+function ConnectedCall({ role, language, roomId, archiveAccessKey, onEnd, onError, onInvite }: {
   role: "caller" | "receiver";
+  language: CallLanguage;
+  roomId: string;
+  archiveAccessKey: string;
   onEnd: () => void;
   onError: (message: string) => void;
   onInvite?: () => void;
@@ -80,6 +86,8 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
   const [speakerEnabled, setSpeakerEnabled] = useState(true);
   const [ending, setEnding] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [translatedSegments, setTranslatedSegments] = useState<TranscriptSegment[]>([]);
+  const [translationError, setTranslationError] = useState(false);
   const startedAt = useRef<number | null>(null);
   const otherRole = role === "caller" ? "receiver" : "caller";
   const otherParticipant = participants.find((participant) => participant.identity.startsWith(`${otherRole}-`));
@@ -90,6 +98,24 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
   const callerTrackSid = participants.find((participant) => participant.identity.startsWith("caller-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
   const receiverTrackSid = participants.find((participant) => participant.identity.startsWith("receiver-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
   const visibleTranscriptions = transcriptions.filter((item) => item.text.trim()).slice(-12);
+
+  useEffect(() => {
+    if (language === "en") return;
+    let active = true;
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/call-logs/${encodeURIComponent(roomId)}`, {
+          headers: { Authorization: `Bearer ${archiveAccessKey}` }, cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Translation feed unavailable");
+        const data = await response.json() as { segments: TranscriptSegment[] };
+        if (active) { setTranslatedSegments(data.segments.slice(-12)); setTranslationError(false); }
+      } catch { if (active) setTranslationError(true); }
+    };
+    void load();
+    const timer = window.setInterval(() => { void load(); }, 2000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [archiveAccessKey, language, roomId]);
 
   // Start when the second person joins; keep elapsed time until this call ends.
   useEffect(() => {
@@ -164,15 +190,20 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
         <div className="context-divider" />
         <div className="safety-context">
           <div className="safety-context-top"><FileText size={18} /><strong>Live transcript</strong><span>{visibleTranscriptions.length ? "Live" : "Waiting"}</span></div>
+          {language !== "en" && <p className="translation-mode">{language === "ur" ? "Urdu" : "Punjabi"} speech · English translation after each turn</p>}
           <div className="transcript-feed" role="log" aria-label="Live transcript" aria-live="polite">
             {visibleTranscriptions.length ? visibleTranscriptions.map((item) => {
               const trackSid = item.streamInfo.attributes?.["lk.transcribed_track_id"];
               const speaker = trackSid === callerTrackSid ? "Caller" : trackSid === receiverTrackSid ? "Receiver" : "Speaker";
               const final = item.streamInfo.attributes?.["lk.transcription_final"] === "true";
               return <p key={item.streamInfo.attributes?.["lk.segment_id"] || item.streamInfo.id} className={`transcript-line${final ? "" : " is-interim"}`}><strong>{speaker}</strong><span>{item.text}</span></p>;
-            }) : <p className="transcript-empty">Speech will appear here after the transcription worker joins. Speak clearly in English to test.</p>}
+            }) : <p className="transcript-empty">Speech will appear here after the transcription worker joins. Speak clearly in {language === "en" ? "English" : language === "ur" ? "Urdu" : "Punjabi"} to test.</p>}
           </div>
-          <p className="transcript-note">Automated text may contain mistakes. Final lines are saved in Call Logs. Threat and scam alerts are not active yet.</p>
+          {language !== "en" && <div className="translation-feed" aria-label="English translation" aria-live="polite">
+            <h3>English translation</h3>
+            {translationError ? <p className="translation-unavailable">Translation feed is unavailable. The call continues.</p> : translatedSegments.length ? translatedSegments.map((segment) => <p key={segment.id} className="translation-line"><strong>{segment.speaker}</strong><span>{segment.translation || "Translation unavailable for this turn"}</span></p>) : <p className="transcript-empty">Waiting for a completed speaking turn…</p>}
+          </div>}
+          <p className="transcript-note">Automated speech recognition and translation may contain mistakes. Final lines are saved in Call Logs. Threat and scam alerts are not active yet.</p>
         </div>
         <p className="headphone-hint"><Headphones size={16} />Use headphones when both devices are nearby.</p>
       </aside>
@@ -265,7 +296,7 @@ export default function CallPage() {
       )}
       {joined && !ended && (
         <LiveKitRoom token={joined.token} serverUrl={joined.serverUrl} connect={true} audio={true} video={false} onDisconnected={() => setEnded(true)} onError={(cause) => setError(cause.message)} onMediaDeviceFailure={() => setError("Microphone access failed. Check your browser permission and device settings.")}>
-          <ConnectedCall role={joined.role} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
+          <ConnectedCall role={joined.role} language={joined.language || "en"} roomId={joined.roomId} archiveAccessKey={joined.archiveAccessKey} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
         </LiveKitRoom>
       )}
       {ended && (

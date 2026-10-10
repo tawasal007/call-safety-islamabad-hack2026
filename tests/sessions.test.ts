@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
-import { admitArchiveAccess, admitParticipant, createSession, issueArchiveAccess, sessionSigningConfigured } from "../lib/sessions.ts";
+import { admitArchiveAccess, admitParticipant, admitParticipantWithLanguage, createSession, issueArchiveAccess, sessionSigningConfigured } from "../lib/sessions.ts";
 
 process.env.SESSION_SIGNING_SECRET = randomBytes(32).toString("hex");
 
@@ -18,6 +18,18 @@ test("signed invitations retain caller and receiver roles in a different server 
   `], { encoding: "utf8", env: { ...process.env, TEST_SESSION: JSON.stringify(session) } });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), ["caller", "receiver"]);
+});
+
+test("signed room language reaches both roles and cannot be forged", () => {
+  for (const language of ["en", "ur", "pa"] as const) {
+    const session = createSession(language);
+    assert.deepEqual(admitParticipantWithLanguage(session.roomId, session.callerAccessKey), { role: "caller", language });
+    assert.deepEqual(admitParticipantWithLanguage(session.roomId, session.receiverAccessKey), { role: "receiver", language });
+    const [payload, signature] = session.receiverAccessKey.split(".");
+    const forged = JSON.parse(Buffer.from(payload, "base64url").toString());
+    forged.language = "en";
+    if (language !== "en") assert.equal(admitParticipantWithLanguage(session.roomId, `${Buffer.from(JSON.stringify(forged)).toString("base64url")}.${signature}`), null);
+  }
 });
 
 test("rejects signature changes, role changes, another room, malformed and expired invitations", () => {

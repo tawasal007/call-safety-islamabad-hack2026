@@ -4,6 +4,7 @@ import asyncio
 import os
 import sys
 import wave
+import json
 from pathlib import Path
 
 import aiohttp
@@ -20,7 +21,7 @@ async def main(wav_path: Path):
     output = np.interp(np.arange(0, len(raw), rate / 48000), np.arange(len(raw)), raw).astype(np.int16)
 
     async with aiohttp.ClientSession() as http:
-        async with http.post(f"{app_url}/api/rooms") as response:
+        async with http.post(f"{app_url}/api/rooms", json={"language": os.environ.get("PROBE_LANGUAGE", "en")}) as response:
             response.raise_for_status()
             created = await response.json()
         async with http.post(f"{app_url}/api/rooms/join", json={
@@ -58,7 +59,7 @@ async def main(wav_path: Path):
                     response.raise_for_status()
                     log = await response.json()
                 if log["segments"]:
-                    print("Saved transcript:", [item["text"] for item in log["segments"]])
+                    print("Saved transcript:", json.dumps([(item["text"], item.get("translation")) for item in log["segments"]], ensure_ascii=True))
                     return
             raise RuntimeError("Speech was not saved within 15 seconds; inspect worker logs and STT credits")
         finally:

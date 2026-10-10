@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { liveKitConfig } from "@/lib/livekit";
 import { createSession, sessionSigningConfigured } from "@/lib/sessions";
+import type { CallLanguage } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Call invitations are not configured on the server." }, { status: 503 });
   }
 
-  const session = createSession();
+  let body: unknown;
+  try { body = await request.json(); } catch { body = {}; }
+  const language = body && typeof body === "object" && "language" in body ? body.language : "en";
+  if (language !== "en" && language !== "ur" && language !== "pa") {
+    return NextResponse.json({ error: "Choose English, Urdu, or Punjabi." }, { status: 400 });
+  }
+  const session = createSession(language as CallLanguage);
   const pageOrigin = request.headers.get("origin") || request.nextUrl.origin;
   const inviteUrl = new URL(`/call/${session.roomId}`, pageOrigin);
   inviteUrl.searchParams.set("invite", session.receiverAccessKey);
@@ -25,5 +32,6 @@ export async function POST(request: NextRequest) {
     roomId: session.roomId,
     callerAccessKey: session.callerAccessKey,
     inviteUrl: inviteUrl.toString(),
+    language: session.language,
   }, { headers: { "Cache-Control": "no-store" } });
 }
