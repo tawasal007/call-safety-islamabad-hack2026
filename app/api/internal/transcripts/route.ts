@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
+import { after, NextRequest, NextResponse } from "next/server";
 import { saveTranscriptSegment, type TranscriptSegment } from "@/lib/call-logs";
+import { processSegment } from "@/lib/monitoring/pipeline";
+import { runtimeDeps } from "@/lib/monitoring/runtime";
+import { workerAuthorized } from "@/lib/worker-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.TRANSCRIPT_WORKER_SECRET?.trim();
-  const supplied = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  if (!secret || secret.length < 32 || secret.startsWith("replace-with-") ||
-      !supplied || Buffer.byteLength(secret) !== Buffer.byteLength(supplied) ||
-      !timingSafeEqual(Buffer.from(secret), Buffer.from(supplied))) {
+  if (!workerAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   let body: Record<string, unknown>;
@@ -26,9 +24,19 @@ export async function POST(request: NextRequest) {
         (typeof translation !== "string" || !translation.trim() || translation.length > 5000))) {
     return NextResponse.json({ error: "Invalid transcript segment" }, { status: 400 });
   }
-  const saved = await saveTranscriptSegment(roomId, {
+  const segment = {
     id, speaker, text: text.trim(), at, language,
     translation: typeof translation === "string" ? translation.trim() : null,
-  } as TranscriptSegment);
+    translatedText: typeof translation === "string" ? translation.trim() : undefined,
+  } as TranscriptSegment;
+  const saved = await saveTranscriptSegment(roomId, segment);
+  // Detection runs after the response is sent, in its own per-room queue, so
+  // LLM latency or failure never delays the worker or the call.
+  if (saved && speaker === "caller") {
+    after(async () => {
+      try { await processSegment(roomId, segment, runtimeDeps()); }
+      catch (error) { console.error(`[monitor] could not start analysis: ${error instanceof Error ? error.message : "unknown error"}`); }
+    });
+  }
   return NextResponse.json({ saved }, { headers: { "Cache-Control": "no-store" } });
 }

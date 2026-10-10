@@ -9,6 +9,8 @@ export type TranscriptSegment = {
   at: string;
   language?: "en" | "ur" | "pa";
   translation?: string | null;
+  /** Optional English translation when the original speech is not English. */
+  translatedText?: string;
 };
 
 const root = path.join(process.cwd(), "data", "call-logs");
@@ -61,7 +63,7 @@ export function formatCallLog(roomId: string, segments: TranscriptSegment[]): st
   for (const segment of segments) {
     const speaker = segment.speaker === "caller" ? "Caller" : "Receiver";
     lines.push(`[${new Date(segment.at).toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}] ${speaker}: ${segment.text}`);
-    if (segment.translation) lines.push(`  English: ${segment.translation}`);
+    if (segment.translation || segment.translatedText) lines.push(`  English: ${segment.translation || segment.translatedText}`);
     else if (segment.language && segment.language !== "en") lines.push("  English translation unavailable");
   }
   return `${lines.join("\n")}\n`;

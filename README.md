@@ -23,7 +23,7 @@ python -m venv .venv-worker
 
 Open **http://localhost:3000**. Leave both terminals running. The worker registers as `call-transcriber` and automatically joins newly created rooms. Start the worker before creating a room. If it stops during a call, start a new room after restarting it. `TRANSCRIPT_APP_URL` defaults to `http://127.0.0.1:3000` for the worker's save callback.
 
-Choose English, Urdu, or Punjabi when creating a room, copy the receiver invitation, and join. Both speakers use the selected speech language. Each person sees the source-language transcript in the call sidebar. For Urdu and Punjabi, the worker translates completed speaking turns into English and shows them below the original text; Call Logs retain both. The warning panel is not implemented yet; live text is transcription and translation only. The app tells participants that both voices are processed and saved.
+Choose English, Urdu, or Punjabi when creating a room, copy the receiver invitation, and join. Both speakers use the selected speech language. Each person sees the source-language transcript in the call sidebar. For Urdu and Punjabi, the worker translates completed speaking turns into English and shows them below the original text; Call Logs retain both. The receiver also sees evidence-based possible scam and threat warnings when the detector is configured. The app tells participants that both voices are processed and saved.
 
 ## Call Logs
 
@@ -54,4 +54,4 @@ Use headphones for two nearby devices. The production HTTPS site can be opened o
 - `POST /api/internal/transcripts` accepts final speaker segments from the worker with a bearer secret.
 - `GET /api/call-logs/[roomId]` returns a room's saved segments to a bearer archive key; `?format=txt` downloads the text file.
 
-Next milestone: analyse transcript segments for scam, threat, and fake-kidnapping language and show evidence-based **possible** risk alerts. The app does not monitor ordinary cellular calls.
+The detector requires a server-side `LLM_API_KEY`. It defaults to Groq with `LLM_PROVIDER=groq` and `LLM_MODEL=openai/gpt-oss-120b`; keep the key out of Git and browser code. Without this configuration, the call and transcript continue, while the receiver sees monitoring as unavailable. Guardian alerts currently use a labelled demo outbox and send nothing. The app does not monitor ordinary cellular calls.
