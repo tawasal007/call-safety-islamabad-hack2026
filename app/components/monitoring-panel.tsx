@@ -1,10 +1,11 @@
 "use client";
 
 import { useRoomContext } from "@livekit/components-react";
-import { ShieldAlert, WifiOff } from "lucide-react";
+import { MicOff, PhoneOff, ShieldAlert, WifiOff } from "lucide-react";
 import { RoomEvent, type RemoteParticipant } from "livekit-client";
 import { useEffect, useState } from "react";
 import { CATEGORIES, isConcernLevel, MONITORING_TOPIC, type MonitoringMessage, type MonitoringStatus, type Warning } from "@/lib/detector/types";
+import { riskLabel, riskScore } from "@/lib/detector/risk-score";
 import { sortWarnings, WarningCard } from "./warning-card";
 
 type PanelStatus = MonitoringStatus | "waiting";
@@ -79,8 +80,22 @@ export function useMonitoring(roomId: string, archiveAccessKey: string, enabled:
 }
 
 export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonitoring>) {
+  const room = useRoomContext();
+  const [actionError, setActionError] = useState("");
   const impaired = status.status === "degraded" || status.status === "unavailable";
   const ordered = sortWarnings(warnings);
+  const score = riskScore(ordered);
+  const top = ordered[0];
+  const scoreUnavailable = impaired && !top;
+  const immediateThreat = !!top && (top.categories.includes("threat_of_harm") || top.categories.includes("kidnapping_claim"));
+  async function muteMicrophone() {
+    try { await room.localParticipant.setMicrophoneEnabled(false); setActionError(""); }
+    catch { setActionError("Could not mute the microphone. Use your device controls or end the call."); }
+  }
+  async function endCall() {
+    try { await room.disconnect(true); setActionError(""); }
+    catch { setActionError("Could not end the call. Close this tab to disconnect."); }
+  }
   return (
     <section className={`monitor-panel${ordered[0] ? ` has-${ordered[0].concernLevel}` : ""}`} aria-labelledby="monitor-heading">
       <div className="safety-context-top">
@@ -94,13 +109,28 @@ export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonit
           Monitoring is {status.status === "unavailable" ? "unavailable" : "degraded"}. Warnings may be delayed or missing. This does not mean the call is safe.
         </p>
       )}
+      <div className={`risk-meter is-${score >= 85 ? "high" : score >= 60 ? "medium" : "quiet"}`} aria-label={scoreUnavailable ? "Concern score unavailable while monitoring is impaired" : `Concern score ${score} out of 100. ${riskLabel(score)}`}>
+        <div className="risk-meter-heading"><span>Concern score</span><strong>{scoreUnavailable ? "—" : score}<small>{scoreUnavailable ? "" : "/100"}</small></strong></div>
+        <div className="risk-meter-track"><span style={{ width: `${score}%` }} /></div>
+        <p>{scoreUnavailable ? "Monitoring is impaired; no score is available." : `${riskLabel(score)} · Based on the highest validated warning, not a probability.`}</p>
+      </div>
       <div className="monitor-warnings" aria-live="assertive">
         {ordered.length ? ordered.map((warning) => <WarningCard key={warning.id} warning={warning} />) : (
           <p className="monitor-empty">
-            {status.status === "waiting" ? "Monitoring starts when the caller speaks." : "No suspicious request detected yet."} This does not mean the call is safe.
+            {status.status === "waiting" ? "Monitoring starts when the other person speaks." : "No suspicious request detected yet."} This does not mean the call is safe.
           </p>
         )}
       </div>
+      {top && (
+        <div className="monitor-response" role="group" aria-label="Call safety actions">
+          <p>{immediateThreat ? "If you feel in danger, move somewhere safe and contact local emergency services or someone you trust. Verify any claim through a separate trusted channel." : "Do not share codes, passwords, or money. Verify the caller through an official or trusted channel."}</p>
+          <div className="monitor-response-actions">
+            <button type="button" onClick={muteMicrophone}><MicOff size={15} />Mute microphone</button>
+            <button type="button" className="is-danger" onClick={endCall}><PhoneOff size={15} />End call</button>
+          </div>
+          {actionError && <p className="monitor-action-error" role="alert">{actionError}</p>}
+        </div>
+      )}
     </section>
   );
 }

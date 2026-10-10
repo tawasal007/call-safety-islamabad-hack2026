@@ -308,6 +308,22 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .monitor-impaired svg { flex: none; margin-top: 2px; }
 .monitor-warnings { display: grid; gap: 10px; margin-top: 12px; }
 .monitor-empty { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.risk-meter { margin-top: 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.risk-meter-heading { display: flex; align-items: baseline; justify-content: space-between; color: var(--quiet); font-size: 11px; font-weight: 650; }
+.risk-meter-heading strong { color: var(--text); font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.risk-meter-heading small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.risk-meter-track { overflow: hidden; height: 6px; margin-top: 9px; border-radius: 20px; background: var(--line); }
+.risk-meter-track span { display: block; height: 100%; border-radius: inherit; background: var(--muted); transition: width .35s ease; }
+.risk-meter.is-medium .risk-meter-track span { background: var(--amber); }
+.risk-meter.is-high .risk-meter-track span { background: var(--red); }
+.risk-meter p { margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.monitor-response { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.monitor-response > p { margin: 0 0 10px; color: var(--text); font-size: 12px; line-height: 1.55; }
+.monitor-response-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.monitor-response-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }
+.monitor-response-actions button:hover { background: var(--surface-raised); }
+.monitor-response-actions button.is-danger { border-color: var(--red); color: var(--red); }
+.monitor-response .monitor-action-error { margin-top: 8px; color: var(--error-text); }
 .warning-card { padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; background: var(--surface); }
 .warning-card.is-high { border-left-color: var(--red); }
 .warning-card.is-low { border-left-color: var(--line-strong); }
