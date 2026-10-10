@@ -1,7 +1,7 @@
 "use client";
 
 import { useRoomContext } from "@livekit/components-react";
-import { MicOff, PhoneOff, ShieldAlert, WifiOff } from "lucide-react";
+import { MicOff, PhoneOff, ShieldAlert, WifiOff, X } from "lucide-react";
 import { RoomEvent, type RemoteParticipant } from "livekit-client";
 import { useEffect, useState } from "react";
 import { CATEGORIES, isConcernLevel, MONITORING_TOPIC, type MonitoringMessage, type MonitoringStatus, type Warning } from "@/lib/detector/types";
@@ -82,6 +82,7 @@ export function useMonitoring(roomId: string, archiveAccessKey: string, enabled:
 export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonitoring>) {
   const room = useRoomContext();
   const [actionError, setActionError] = useState("");
+  const [dismissedBanner, setDismissedBanner] = useState("");
   const impaired = status.status === "degraded" || status.status === "unavailable";
   const ordered = sortWarnings(warnings);
   const score = riskScore(ordered);
@@ -129,6 +130,15 @@ export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonit
             <button type="button" className="is-danger" onClick={endCall}><PhoneOff size={15} />End call</button>
           </div>
           {actionError && <p className="monitor-action-error" role="alert">{actionError}</p>}
+        </div>
+      )}
+      {top && dismissedBanner !== `${top.id}:${top.version}` && (
+        <div className={`mobile-risk-alert is-${top.concernLevel}`} role="alert">
+          <button type="button" className="mobile-risk-dismiss" onClick={() => setDismissedBanner(`${top.id}:${top.version}`)} aria-label="Dismiss compact warning"><X size={17} /></button>
+          <strong>{riskLabel(score)} · {score}/100</strong>
+          <p><mark>{top.evidence[0]?.quote}</mark></p>
+          <span>{top.suggestedAction}</span>
+          <button type="button" className="mobile-risk-end" onClick={endCall}><PhoneOff size={14} />End call</button>
         </div>
       )}
     </section>

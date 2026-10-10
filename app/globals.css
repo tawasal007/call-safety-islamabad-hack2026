@@ -324,6 +324,16 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .monitor-response-actions button:hover { background: var(--surface-raised); }
 .monitor-response-actions button.is-danger { border-color: var(--red); color: var(--red); }
 .monitor-response .monitor-action-error { margin-top: 8px; color: var(--error-text); }
+.mobile-risk-alert { display: none; }
+@media (max-width: 760px) {
+  .mobile-risk-alert { position: fixed; z-index: 50; top: 76px; right: 12px; left: 76px; display: grid; gap: 6px; max-height: 42dvh; overflow: auto; padding: 14px; border: 1px solid var(--amber); border-radius: 11px; background: var(--surface); box-shadow: 0 15px 45px #0006; }
+  .mobile-risk-alert.is-high { border-color: var(--red); }
+  .mobile-risk-alert strong { padding-right: 26px; font-size: 13px; }
+  .mobile-risk-alert p, .mobile-risk-alert span { margin: 0; font-size: 11px; line-height: 1.45; }
+  .mobile-risk-alert span { color: var(--muted); }
+  .mobile-risk-dismiss { position: absolute; top: 9px; right: 9px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .mobile-risk-end { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; margin-top: 4px; border: 1px solid var(--red); border-radius: 7px; background: var(--red); color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+}
 .warning-card { padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; background: var(--surface); }
 .warning-card.is-high { border-left-color: var(--red); }
 .warning-card.is-low { border-left-color: var(--line-strong); }
