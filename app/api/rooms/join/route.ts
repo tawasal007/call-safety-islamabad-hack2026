@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { liveKitConfig, makeParticipantToken } from "@/lib/livekit";
-import { admitParticipant, sessionSigningConfigured } from "@/lib/sessions";
+import { admitParticipant, issueArchiveAccess, sessionSigningConfigured } from "@/lib/sessions";
 
 export const runtime = "nodejs";
 
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   const token = await makeParticipantToken(body.roomId, role, config);
   return NextResponse.json({
     token,
+    archiveAccessKey: issueArchiveAccess(body.roomId),
     serverUrl: config.browserUrl,
     role,
     roomId: body.roomId,

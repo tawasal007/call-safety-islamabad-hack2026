@@ -1,10 +1,12 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 const SESSION_LIFETIME_MS = 2 * 60 * 60 * 1000;
+const ARCHIVE_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type ParticipantRole = "caller" | "receiver";
 
 type Invitation = { version: 1; roomId: string; role: ParticipantRole; expiresAt: number };
+type ArchiveAccess = { version: 1; purpose: "call-log"; roomId: string; expiresAt: number };
 
 function signingSecret(): string {
   const secret = process.env.SESSION_SIGNING_SECRET?.trim();
@@ -60,4 +62,26 @@ export function admitParticipant(
     ) return null;
     return invitation.role;
   } catch { return null; }
+}
+
+export function issueArchiveAccess(roomId: string): string {
+  const payload = Buffer.from(JSON.stringify({
+    version: 1, purpose: "call-log", roomId, expiresAt: Date.now() + ARCHIVE_LIFETIME_MS,
+  } satisfies ArchiveAccess)).toString("base64url");
+  return `${payload}.${createHmac("sha256", signingSecret()).update(`call-safety-archive:${payload}`).digest("base64url")}`;
+}
+
+export function admitArchiveAccess(roomId: string, accessKey: string): boolean {
+  if (!/^call-[0-9a-f-]{36}$/.test(roomId) || !accessKey || accessKey.length > 2048) return false;
+  const parts = accessKey.split(".");
+  if (parts.length !== 2 || !parts.every(part => /^[A-Za-z0-9_-]+$/.test(part))) return false;
+  const [payload, signature] = parts;
+  const expected = Buffer.from(createHmac("sha256", signingSecret()).update(`call-safety-archive:${payload}`).digest("base64url"));
+  const supplied = Buffer.from(signature);
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) return false;
+  try {
+    const access = JSON.parse(Buffer.from(payload, "base64url").toString()) as ArchiveAccess;
+    return access.version === 1 && access.purpose === "call-log" && access.roomId === roomId &&
+      Number.isSafeInteger(access.expiresAt) && access.expiresAt > Date.now();
+  } catch { return false; }
 }

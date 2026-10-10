@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import test from "node:test";
-import { admitParticipant, createSession, sessionSigningConfigured } from "../lib/sessions.ts";
+import { admitArchiveAccess, admitParticipant, createSession, issueArchiveAccess, sessionSigningConfigured } from "../lib/sessions.ts";
 
 process.env.SESSION_SIGNING_SECRET = randomBytes(32).toString("hex");
 
@@ -47,4 +47,19 @@ test("changing the signing secret invalidates old invitations", () => {
     process.env.SESSION_SIGNING_SECRET = "replace-with-a-random-64-character-hex-value";
     assert.equal(sessionSigningConfigured(), false);
   } finally { process.env.SESSION_SIGNING_SECRET = previous; }
+});
+
+test("call log access is room-scoped and remains valid after the invitation expires", () => {
+  const session = createSession();
+  const archiveKey = issueArchiveAccess(session.roomId);
+  assert.equal(admitArchiveAccess(session.roomId, archiveKey), true);
+  assert.equal(admitArchiveAccess(createSession().roomId, archiveKey), false);
+  const realNow = Date.now;
+  try {
+    Date.now = () => session.expiresAt + 1;
+    assert.equal(admitParticipant(session.roomId, session.callerAccessKey), null);
+    assert.equal(admitArchiveAccess(session.roomId, archiveKey), true);
+    Date.now = () => session.expiresAt + 31 * 24 * 60 * 60 * 1000;
+    assert.equal(admitArchiveAccess(session.roomId, archiveKey), false);
+  } finally { Date.now = realNow; }
 });

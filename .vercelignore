@@ -4,6 +4,10 @@ node_modules
 .vercel
 .env*
 local-livekit
+data
+.venv-worker
+worker
+scripts/probe-*.py
 design-assets
 *.log
 *.tsbuildinfo

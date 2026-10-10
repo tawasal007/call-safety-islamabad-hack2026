@@ -1,5 +1,6 @@
 import { AccessToken, TrackSource } from "livekit-server-sdk";
 import type { ParticipantRole } from "@/lib/sessions";
+import { RoomAgentDispatch, RoomConfiguration } from "@livekit/protocol";
 
 type LiveKitConfig = {
   browserUrl: string;
@@ -40,6 +41,9 @@ export async function makeParticipantToken(
     canPublishSources: [TrackSource.MICROPHONE],
     canSubscribe: true,
     canPublishData: false,
+  });
+  token.roomConfig = new RoomConfiguration({
+    agents: [new RoomAgentDispatch({ agentName: "call-transcriber" })],
   });
   return token.toJwt();
 }

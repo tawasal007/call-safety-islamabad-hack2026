@@ -4,19 +4,22 @@ import {
   LiveKitRoom, RoomAudioRenderer, StartAudio, TrackToggle,
   useConnectionState, useIsSpeaking, useLocalParticipant, useMultibandTrackVolume,
   useParticipants, useRoomContext,
+  useTranscriptions,
 } from "@livekit/components-react";
-import { Check, Copy, Headphones, Info, Mic, MicOff, Phone, PhoneOff, Shield, ShieldCheck, UserPlus, Volume2, VolumeX, X } from "lucide-react";
+import { Check, Copy, FileText, Headphones, Info, Mic, MicOff, Phone, PhoneOff, Shield, ShieldCheck, UserPlus, Volume2, VolumeX, X } from "lucide-react";
 import { ConnectionState, Track, type Participant } from "livekit-client";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "../../components/theme-toggle";
+import { rememberCall } from "@/lib/call-log-client";
 
 type JoinResponse = {
   token: string;
   serverUrl: string;
   roomId: string;
   role: "caller" | "receiver";
+  archiveAccessKey: string;
   error?: string;
 };
 
@@ -83,6 +86,10 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
   const connected = state === ConnectionState.Connected;
   const together = connected && !!otherParticipant;
   const otherName = otherRole === "caller" ? "Caller" : "Receiver";
+  const transcriptions = useTranscriptions();
+  const callerTrackSid = participants.find((participant) => participant.identity.startsWith("caller-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
+  const receiverTrackSid = participants.find((participant) => participant.identity.startsWith("receiver-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
+  const visibleTranscriptions = transcriptions.filter((item) => item.text.trim()).slice(-12);
 
   // Start when the second person joins; keep elapsed time until this call ends.
   useEffect(() => {
@@ -156,8 +163,16 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
         </div>
         <div className="context-divider" />
         <div className="safety-context">
-          <div className="safety-context-top"><Shield size={18} /><strong>Safety monitoring</strong><span>Off</span></div>
-          <p>Transcript and warnings are not connected yet.</p>
+          <div className="safety-context-top"><FileText size={18} /><strong>Live transcript</strong><span>{visibleTranscriptions.length ? "Live" : "Waiting"}</span></div>
+          <div className="transcript-feed" role="log" aria-label="Live transcript" aria-live="polite">
+            {visibleTranscriptions.length ? visibleTranscriptions.map((item) => {
+              const trackSid = item.streamInfo.attributes?.["lk.transcribed_track_id"];
+              const speaker = trackSid === callerTrackSid ? "Caller" : trackSid === receiverTrackSid ? "Receiver" : "Speaker";
+              const final = item.streamInfo.attributes?.["lk.transcription_final"] === "true";
+              return <p key={item.streamInfo.attributes?.["lk.segment_id"] || item.streamInfo.id} className={`transcript-line${final ? "" : " is-interim"}`}><strong>{speaker}</strong><span>{item.text}</span></p>;
+            }) : <p className="transcript-empty">Speech will appear here after the transcription worker joins. Speak clearly in English to test.</p>}
+          </div>
+          <p className="transcript-note">Automated text may contain mistakes. Final lines are saved in Call Logs. Threat and scam alerts are not active yet.</p>
         </div>
         <p className="headphone-hint"><Headphones size={16} />Use headphones when both devices are nearby.</p>
       </aside>
@@ -201,6 +216,7 @@ export default function CallPage() {
       });
       const data = (await response.json()) as JoinResponse;
       if (!response.ok) throw new Error(data.error || "Could not join this call.");
+      rememberCall({ roomId: data.roomId, archiveAccessKey: data.archiveAccessKey, role: data.role, joinedAt: new Date().toISOString() });
       setJoined(data);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not join this call.");
@@ -227,7 +243,7 @@ export default function CallPage() {
     <main className="call-shell">
       <header className="call-topbar">
         <Link href="/" className="wordmark"><span className="wordmark-mark"><Shield size={18} /></span><span>Call Safety</span></Link>
-        <div className="header-tools"><div className="room-reference"><span>Room</span><strong>{roomId?.slice(-8)}</strong></div><ThemeToggle /></div>
+        <div className="header-tools"><Link href="/call-logs" className="header-link"><FileText size={15} />Call Logs</Link><div className="room-reference"><span>Room</span><strong>{roomId?.slice(-8)}</strong></div><ThemeToggle /></div>
       </header>
       {!joined && !ended && (
         <section className="prejoin-layout">
@@ -236,7 +252,7 @@ export default function CallPage() {
             <h1>Room {roomId?.slice(-8)}</h1>
             <p>{inviteUrl ? "Share the invitation, then join the call." : "Join the call as the receiver."}</p>
             {inviteUrl && <div className="room-invitation"><label htmlFor="setup-invitation">Receiver invitation</label><input id="setup-invitation" value={inviteUrl} readOnly onFocus={(event) => event.target.select()} /><button className="secondary-button" onClick={copyInvite}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? "Copied" : "Copy invitation"}</button><span className="sr-only" role="status">{copied ? "Invitation copied" : ""}</span>{copyError && <p className="inline-error" role="alert">{copyError}</p>}</div>}
-            <div className="prejoin-facts"><span><Mic size={17} />Microphone required</span><span><Headphones size={17} />Headphones recommended</span></div>
+            <div className="prejoin-facts"><span><Mic size={17} />Microphone required</span><span><Headphones size={17} />Headphones recommended</span><span><FileText size={17} />Both voices are transcribed and saved in Call Logs</span></div>
           </div>
           <div className="join-card">
             <div className="join-card-icon"><Phone size={27} /></div>
@@ -253,10 +269,10 @@ export default function CallPage() {
         </LiveKitRoom>
       )}
       {ended && (
-        <section className="ended-card"><div className="ended-icon"><PhoneOff size={28} /></div><p className="prejoin-eyebrow">CALL FINISHED</p><h1>Call ended</h1><p>Your microphone is disconnected and the room is closed on this device.</p><Link href="/" className="join-button"><Phone size={19} />Start another call</Link></section>
+        <section className="ended-card"><div className="ended-icon"><PhoneOff size={28} /></div><p className="prejoin-eyebrow">CALL FINISHED</p><h1>Call ended</h1><p>Your microphone is disconnected. The transcript remains available in Call Logs.</p><div className="ended-actions"><Link href="/call-logs" className="secondary-button"><FileText size={17} />View Call Logs</Link><Link href="/" className="join-button"><Phone size={19} />Start another call</Link></div></section>
       )}
       {error && !ended && <p className="call-error" role="alert"><Info size={17} />{error}</p>}
-      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><span>Safety monitoring is not active yet</span></footer>
+      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><span>Call speech can be transcribed and saved in Call Logs</span></footer>
       <dialog ref={inviteDialog} className="invite-dialog" aria-labelledby="invite-title" aria-describedby="invite-description">
         <button className="dialog-close" onClick={() => inviteDialog.current?.close()} aria-label="Close invitation"><X size={21} /></button>
         <span className="invite-dialog-icon"><UserPlus size={25} /></span>

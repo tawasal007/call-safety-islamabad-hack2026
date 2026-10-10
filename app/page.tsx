@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowRight, Headphones, Link2, Mic, Phone, Shield, Users } from "lucide-react";
+import { ArrowRight, FileText, Headphones, Link2, Mic, Phone, Shield, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { ThemeToggle } from "./components/theme-toggle";
 
 type CreateRoomResponse = {
@@ -56,7 +57,7 @@ export default function HomePage() {
     <main className="app-home">
       <header className="call-topbar">
         <a href="/" className="wordmark"><span className="wordmark-mark"><Shield size={18} /></span><span>Call Safety</span></a>
-        <div className="header-tools"><span className="app-header-label">Audio rooms</span><ThemeToggle /></div>
+        <div className="header-tools"><Link href="/call-logs" className="header-link"><FileText size={15} />Call Logs</Link><ThemeToggle /></div>
       </header>
 
       <section className="home-workspace" aria-labelledby="home-heading">
@@ -90,7 +91,7 @@ export default function HomePage() {
         </div>
         <p className="home-device-note"><Headphones size={16} />Use headphones when testing on nearby devices.</p>
       </section>
-      <footer className="app-status-footer"><Shield size={14} /><span>Safety monitoring is not active yet</span></footer>
+      <footer className="app-status-footer"><Shield size={14} /><span>Calls can be transcribed and saved when the transcription worker is running</span></footer>
     </main>
   );
 }
