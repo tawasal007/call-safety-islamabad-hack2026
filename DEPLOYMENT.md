@@ -2,6 +2,8 @@
 
 Production: https://call-safety-islamabad-hack2026.vercel.app
 
+Latest production deployment (10 October 2026): `dpl_4mtc1CeVMSayVC4JPqRrskuofZQE`. The private Vercel Blob store is suspended after reaching its usage threshold. New calls therefore keep finalized captions and receiver warnings in the browser's local storage, and the receiver sends caller captions to the server-side Groq detector. This fallback is browser-local and does not recover old server-stored records. Restore or replace the private Blob store to resume durable, cross-device archives.
+
 The project is linked in ignored `.vercel/project.json` to `tawasal1/call-safety-islamabad-hack2026`. On 10 October 2026 the current local checkout was deployed with Vercel CLI. No Git commit or push was made. To deploy later local changes without Git:
 
 ```powershell

@@ -38,7 +38,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const token = await makeParticipantToken(body.roomId, admission.role, config, admission.language);
+  const displayName = "displayName" in body ? body.displayName : undefined;
+  if (displayName !== undefined && (typeof displayName !== "string" || displayName.trim().length > 60)) {
+    return NextResponse.json({ error: "Use a display name of 60 characters or fewer." }, { status: 400 });
+  }
+  const token = await makeParticipantToken(body.roomId, admission.role, config, admission.language, displayName);
   return NextResponse.json({
     token,
     archiveAccessKey: issueArchiveAccess(body.roomId),

@@ -5,6 +5,9 @@ import { runtimeDeps } from "@/lib/monitoring/runtime";
 import { workerAuthorized } from "@/lib/worker-auth";
 
 export const runtime = "nodejs";
+// The response returns immediately, while after() needs enough time for Groq
+// and transcript storage to finish on Vercel.
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   if (!workerAuthorized(request.headers.get("authorization"))) {

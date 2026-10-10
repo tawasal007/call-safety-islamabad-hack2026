@@ -1,6 +1,6 @@
 # Call Safety
 
-A two-person browser audio call with live transcription of both speakers. The app has a home page, room setup/call page, and Call Logs. The website is deployed at [call-safety-islamabad-hack2026.vercel.app](https://call-safety-islamabad-hack2026.vercel.app). The silent transcription worker still runs on this computer.
+A two-person browser audio call with live transcription of both speakers. The app has a landing page at `/`, a calling workspace at `/calls`, a room setup/call page, and call history at `/call-logs`. Navigation is stacked under the left-side Menu button and collapses to icons on small screens. The website is deployed at [call-safety-islamabad-hack2026.vercel.app](https://call-safety-islamabad-hack2026.vercel.app). The silent transcription worker still runs on this computer.
 
 ## Run locally
 
@@ -23,9 +23,11 @@ python -m venv .venv-worker
 
 Open **http://localhost:3000**. Leave both terminals running. The worker registers as `call-transcriber` and automatically joins newly created rooms. Start the worker before creating a room. If it stops during a call, start a new room after restarting it. `TRANSCRIPT_APP_URL` defaults to `http://127.0.0.1:3000` for the worker's save callback.
 
-Choose English, Urdu, or Punjabi when creating a room, copy the receiver invitation, and join. Both speakers use the selected speech language. Each person sees the source-language transcript in the call sidebar. For Urdu and Punjabi, the worker translates completed speaking turns into English and shows them below the original text; Call Logs retain both. The receiver also sees evidence-based possible scam and threat warnings when the detector is configured. The app tells participants that both voices are processed and saved.
+Open the Calls tab, choose English, Urdu, or Punjabi, and start a call. Share the invitation and optionally enter a display name before joining. The other person sees that name instead of a caller/receiver role label; without a name, the interface uses “Other person.” Each call shows just the latest utterance from “You” and the other person, independently, under the call controls. Full conversations remain in call history. For Urdu and Punjabi, completed English translations appear with their matching utterance. Both speakers use the selected speech language. The invited participant also sees evidence-based possible scam and threat warnings when the detector is configured. The app tells participants that both voices are processed and saved.
 
 ## Call Logs
+
+**Current production limitation (10 October 2026):** The original private Vercel Blob store is suspended. New calls save finalized captions and receiver warnings in the browser's local storage, and the receiver sends caller captions to the server-side Groq detector. These fallback records are available only in that browser; old records in the suspended store cannot be loaded until the store is restored. A working private Blob store is needed for durable, cross-device archives.
 
 The worker uses LiveKit Inference with Deepgram Nova-3 for English and Cartesia Ink Whisper for Urdu/Punjabi speech recognition. For Urdu/Punjabi, it sends each final utterance to the LiveKit Inference `openai/gpt-4.1-mini` model for English translation. These services use the existing LiveKit Cloud project and consume its Inference allowance; no second provider key is needed. The browser shows interim source text immediately and fetches completed translations every two seconds. A failed translation is labelled unavailable; the source transcript remains. Locally, the API writes `data/call-logs/<room-id>/segments.jsonl` and `transcript.txt`. On Vercel, each final segment is a private file in the `call-safety-transcripts` Blob store; the API combines them into a `.txt` download. The app does not create a local audio recording. The `Call Logs` tab shows rooms joined in the current browser. If you use a different browser or clear browser storage, the transcript files remain, but that browser will not list the old rooms.
 

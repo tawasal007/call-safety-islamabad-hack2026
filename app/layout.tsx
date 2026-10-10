@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppShell } from "./components/app-shell";
 
 export const metadata: Metadata = {
   title: "SadaSafe — private browser audio calls",
@@ -9,10 +10,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body>
-        <script dangerouslySetInnerHTML={{ __html: 'try { document.documentElement.dataset.theme = localStorage.getItem("call-safety-theme") === "light" ? "light" : "dark"; } catch { document.documentElement.dataset.theme = "dark"; }' }} />
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

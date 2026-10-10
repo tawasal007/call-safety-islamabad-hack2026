@@ -29,10 +29,11 @@ export async function makeParticipantToken(
   role: ParticipantRole,
   config: LiveKitConfig,
   language: CallLanguage = "en",
+  displayName?: string,
 ): Promise<string> {
   const token = new AccessToken(config.apiKey, config.apiSecret, {
     identity: `${role}-${roomId}`,
-    name: role === "caller" ? "Caller" : "Receiver",
+    name: displayName?.trim().slice(0, 60) || "Other person",
     ttl: "30m",
   });
   token.addGrant({

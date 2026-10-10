@@ -4,6 +4,7 @@ import { Download, FileWarning, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ConcernBadge, HighlightedText, sortWarnings } from "../components/warning-card";
 import { getSavedCalls, type SavedCall } from "@/lib/call-log-client";
+import { localCallDetail } from "@/lib/local-call-record";
 import type { CallDetail } from "@/lib/monitoring/call-record";
 import { riskLabel, riskScore } from "@/lib/detector/risk-score";
 
@@ -36,7 +37,7 @@ export default function CrimeReportsPage() {
     setDetail(null); setError("");
     fetch(`/api/calls/${encodeURIComponent(call.roomId)}`, { headers: { Authorization: `Bearer ${call.archiveAccessKey}` }, cache: "no-store" })
       .then(async (response) => { if (!response.ok) throw new Error("Could not load this call report."); return response.json() as Promise<CallDetail>; })
-      .then(setDetail).catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load this call report."));
+      .then(setDetail).catch((cause) => { const local = localCallDetail(call.roomId); if (local) setDetail(local); else setError(cause instanceof Error ? cause.message : "Could not load this call report."); });
   }, [call]);
 
   const score = useMemo(() => detail ? riskScore(detail.warnings) : 0, [detail]);
@@ -55,7 +56,7 @@ export default function CrimeReportsPage() {
       <div className="logs-layout"><nav className="logs-list" aria-label="Call reports">{calls.map((item) => <button key={item.roomId} className={`log-list-item${selected === item.roomId ? " is-selected" : ""}`} onClick={() => setSelected(item.roomId)}><FileWarning size={18} /><span><strong>Report {item.roomId.slice(-8)}</strong><small>Generate from saved call log</small></span></button>)}</nav>
         <article className="log-detail">{error ? <p className="inline-error" role="alert">{error}</p> : !call || !detail ? <p className="logs-empty">Preparing report…</p> : <>
           <div className="log-detail-heading"><div><p className="prejoin-eyebrow">AUTOMATED INCIDENT SUMMARY</p><h2>Crime report</h2><span>Call {call.roomId.slice(-8)}</span></div><button className="secondary-button" onClick={downloadReport}><Download size={16} />Download report</button></div>
-          <div className={`risk-meter is-${score >= 85 ? "high" : score >= 60 ? "medium" : "quiet"}`}><div className="risk-meter-heading"><span>Threat threshold</span><strong>{score}<small>/100</small></strong></div><div className="risk-meter-track"><span style={{ width: `${score}%` }} /></div><p>{riskLabel(score)} · Generated from saved warnings.</p></div>
+          {call.role === "receiver" && <div className={`risk-meter is-${score >= 85 ? "high" : score >= 60 ? "medium" : "quiet"}`}><div className="risk-meter-heading"><span>Threat threshold</span><strong>{score}<small>/100</small></strong></div><div className="risk-meter-track"><span style={{ width: `${score}%` }} /></div><p>{riskLabel(score)} · Generated from saved warnings.</p></div>}
           <dl className="call-facts"><div><dt>Monitoring</dt><dd>{detail.monitoringStatus}</dd></div><div><dt>Detected warnings</dt><dd>{detail.warningCount}</dd></div><div><dt>Highest concern</dt><dd><ConcernBadge level={detail.highestConcern} /></dd></div></dl>
           <h3 className="log-section-title"><ShieldAlert size={15} />Evidence</h3>
           {detail.warnings.length ? <div className="log-warnings">{sortWarnings(detail.warnings).map((warning) => <article className="warning-card" key={warning.id}><strong>{warning.title}</strong><p>{warning.evidence.map((item) => <mark key={`${item.segmentId}-${item.quote}`}>{item.quote} </mark>)}</p><p>{warning.explanation}</p></article>)}</div> : <p className="logs-empty">No crime indicators were detected in this call log.</p>}

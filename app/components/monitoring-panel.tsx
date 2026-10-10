@@ -46,19 +46,27 @@ export function useMonitoring(roomId: string, archiveAccessKey: string, enabled:
   useEffect(() => {
     if (!enabled) return;
     let active = true;
-    // Recover warnings sent before this page connected (refresh or reconnect).
-    fetch(`/api/calls/${encodeURIComponent(roomId)}`, { headers: { Authorization: `Bearer ${archiveAccessKey}` }, cache: "no-store" })
+    let inFlight = false;
+    // Poll as a fallback when a LiveKit warning packet is missed or arrives before the receiver joins.
+    const refresh = () => {
+      if (inFlight) return;
+      inFlight = true;
+      fetch(`/api/calls/${encodeURIComponent(roomId)}`, { headers: { Authorization: `Bearer ${archiveAccessKey}` }, cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((data: { warnings?: unknown[]; monitoringStatus?: string } | null) => {
         if (!active || !data) return;
         const seeded = (data.warnings ?? []).filter((item): item is Warning => isWarning(item, roomId));
         setWarnings((current) => seeded.reduce(upsert, current));
         if (data.monitoringStatus && STATUSES.has(data.monitoringStatus) && data.monitoringStatus !== "ended") {
-          setStatus((current) => current.status === "waiting" ? { status: data.monitoringStatus as MonitoringStatus } : current);
+          setStatus({ status: data.monitoringStatus as MonitoringStatus });
         }
       })
-      .catch(() => undefined);
-    return () => { active = false; };
+      .catch(() => undefined)
+      .finally(() => { inFlight = false; });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 2000);
+    return () => { active = false; window.clearInterval(timer); };
   }, [roomId, archiveAccessKey, enabled]);
 
   useEffect(() => {
@@ -83,12 +91,24 @@ export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonit
   const room = useRoomContext();
   const [actionError, setActionError] = useState("");
   const [dismissedBanner, setDismissedBanner] = useState("");
+  const [cancelledCutoffs, setCancelledCutoffs] = useState<string[]>([]);
+  const [secondsToCutoff, setSecondsToCutoff] = useState<number | null>(null);
   const impaired = status.status === "degraded" || status.status === "unavailable";
   const ordered = sortWarnings(warnings);
   const score = riskScore(ordered);
   const top = ordered[0];
   const scoreUnavailable = impaired && !top;
   const immediateThreat = !!top && (top.categories.includes("threat_of_harm") || top.categories.includes("kidnapping_claim"));
+  // Only the protected receiver owns the automatic cutoff. The other device
+  // can see the warning, but must not end the call after the receiver cancels.
+  const cutoffWarningId = room.localParticipant.identity.startsWith("receiver-") && top?.concernLevel === "high" ? top.id : undefined;
+  useEffect(() => {
+    if (!cutoffWarningId || cancelledCutoffs.includes(cutoffWarningId)) { setSecondsToCutoff(null); return; }
+    setSecondsToCutoff(5);
+    const interval = window.setInterval(() => setSecondsToCutoff((value) => value === null ? null : Math.max(0, value - 1)), 1000);
+    const cutoff = window.setTimeout(() => { void room.disconnect(true); }, 5000);
+    return () => { window.clearInterval(interval); window.clearTimeout(cutoff); };
+  }, [room, cutoffWarningId, cancelledCutoffs]);
   async function muteMicrophone() {
     try { await room.localParticipant.setMicrophoneEnabled(false); setActionError(""); }
     catch { setActionError("Could not mute the microphone. Use your device controls or end the call."); }
@@ -111,10 +131,20 @@ export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonit
         </p>
       )}
       <div className={`risk-meter is-${score >= 85 ? "high" : score >= 60 ? "medium" : "quiet"}`} aria-label={scoreUnavailable ? "Concern score unavailable while monitoring is impaired" : `Concern score ${score} out of 100. ${riskLabel(score)}`}>
-        <div className="risk-meter-heading"><span>Concern score</span><strong>{scoreUnavailable ? "—" : score}<small>{scoreUnavailable ? "" : "/100"}</small></strong></div>
+        <div className="risk-meter-heading"><span>Threat threshold</span><strong>{scoreUnavailable ? "—" : score}<small>{scoreUnavailable ? "" : "/100"}</small></strong></div>
         <div className="risk-meter-track"><span style={{ width: `${score}%` }} /></div>
         <p>{scoreUnavailable ? "Monitoring is impaired; no score is available." : `${riskLabel(score)} · Based on the highest validated warning, not a probability.`}</p>
       </div>
+      {secondsToCutoff !== null && cutoffWarningId && (
+        <div className="cutoff-warning" role="alert">
+          <strong>Possible scam or threat · call ends in {secondsToCutoff}s</strong>
+          <p>{top?.evidence[0]?.quote ? <mark>{top.evidence[0].quote}</mark> : "Suspicious request detected."}</p>
+          <div className="monitor-response-actions">
+            <button type="button" onClick={() => setCancelledCutoffs((current) => [...current, cutoffWarningId])}>Cancel automatic end</button>
+            <button type="button" className="is-danger" onClick={endCall}><PhoneOff size={15} />End now</button>
+          </div>
+        </div>
+      )}
       <div className="monitor-warnings" aria-live="assertive">
         {ordered.length ? ordered.map((warning) => <WarningCard key={warning.id} warning={warning} />) : (
           <p className="monitor-empty">
@@ -132,13 +162,14 @@ export function MonitoringPanel({ warnings, status }: ReturnType<typeof useMonit
           {actionError && <p className="monitor-action-error" role="alert">{actionError}</p>}
         </div>
       )}
-      {top && dismissedBanner !== `${top.id}:${top.version}` && (
+      {top && (secondsToCutoff !== null || dismissedBanner !== `${top.id}:${top.version}`) && (
         <div className={`mobile-risk-alert is-${top.concernLevel}`} role="alert">
-          <button type="button" className="mobile-risk-dismiss" onClick={() => setDismissedBanner(`${top.id}:${top.version}`)} aria-label="Dismiss compact warning"><X size={17} /></button>
-          <strong>{riskLabel(score)} · {score}/100</strong>
+          {secondsToCutoff === null && <button type="button" className="mobile-risk-dismiss" onClick={() => setDismissedBanner(`${top.id}:${top.version}`)} aria-label="Dismiss compact warning"><X size={17} /></button>}
+          <strong>{riskLabel(score)} · {score}/100{secondsToCutoff !== null ? ` · ends in ${secondsToCutoff}s` : ""}</strong>
           <p><mark>{top.evidence[0]?.quote}</mark></p>
           <span>{top.suggestedAction}</span>
-          <button type="button" className="mobile-risk-end" onClick={endCall}><PhoneOff size={14} />End call</button>
+          {secondsToCutoff !== null && cutoffWarningId && <button type="button" className="mobile-risk-cancel" onClick={() => setCancelledCutoffs((current) => [...current, cutoffWarningId])}>Cancel automatic end</button>}
+          <button type="button" className="mobile-risk-end" onClick={endCall}><PhoneOff size={14} />End now</button>
         </div>
       )}
     </section>
