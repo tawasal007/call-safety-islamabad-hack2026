@@ -13,6 +13,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "../../components/theme-toggle";
 import { rememberCall } from "@/lib/call-log-client";
+import { MonitoringPanel, useMonitoring } from "../../components/monitoring-panel";
+import { HighlightedText } from "../../components/warning-card";
 
 type JoinResponse = {
   token: string;
@@ -67,7 +69,9 @@ function LiveVoiceActivity({ localParticipant, remoteParticipant, remoteName }: 
   );
 }
 
-function ConnectedCall({ role, onEnd, onError, onInvite }: {
+function ConnectedCall({ roomId, archiveAccessKey, role, onEnd, onError, onInvite }: {
+  roomId: string;
+  archiveAccessKey: string;
   role: "caller" | "receiver";
   onEnd: () => void;
   onError: (message: string) => void;
@@ -90,6 +94,9 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
   const callerTrackSid = participants.find((participant) => participant.identity.startsWith("caller-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
   const receiverTrackSid = participants.find((participant) => participant.identity.startsWith("receiver-"))?.getTrackPublication(Track.Source.Microphone)?.trackSid;
   const visibleTranscriptions = transcriptions.filter((item) => item.text.trim()).slice(-12);
+  // Only the receiver gets safety warnings; the caller's speech is what is monitored.
+  const monitoring = useMonitoring(roomId, archiveAccessKey, role === "receiver");
+  const evidenceQuotes = monitoring.warnings.flatMap((warning) => warning.evidence.map((item) => item.quote));
 
   // Start when the second person joins; keep elapsed time until this call ends.
   useEffect(() => {
@@ -157,6 +164,7 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
 
       <aside className="call-context" aria-label="Room information">
         <div className="context-heading"><div><p>Room status</p><h2>Two-person call</h2></div><ShieldCheck size={22} /></div>
+        {role === "receiver" && <MonitoringPanel {...monitoring} />}
         <div className="participant-list">
           <div className="participant-row"><span className="participant-avatar">{role === "caller" ? "C" : "R"}</span><span><strong>You</strong><small>{role}</small></span><i className="participant-dot is-online" /></div>
           <div className={`participant-row${!otherParticipant ? " is-waiting" : ""}`}><span className="participant-avatar participant-avatar-alt">{otherName[0]}</span><span><strong>{otherName}</strong><small>{otherParticipant ? "In the call" : "Waiting to join"}</small></span><i className={`participant-dot${otherParticipant ? " is-online" : ""}`} /></div>
@@ -169,10 +177,10 @@ function ConnectedCall({ role, onEnd, onError, onInvite }: {
               const trackSid = item.streamInfo.attributes?.["lk.transcribed_track_id"];
               const speaker = trackSid === callerTrackSid ? "Caller" : trackSid === receiverTrackSid ? "Receiver" : "Speaker";
               const final = item.streamInfo.attributes?.["lk.transcription_final"] === "true";
-              return <p key={item.streamInfo.attributes?.["lk.segment_id"] || item.streamInfo.id} className={`transcript-line${final ? "" : " is-interim"}`}><strong>{speaker}</strong><span>{item.text}</span></p>;
+              return <p key={item.streamInfo.attributes?.["lk.segment_id"] || item.streamInfo.id} className={`transcript-line${final ? "" : " is-interim"}`}><strong>{speaker}</strong><span>{speaker === "Caller" && final ? <HighlightedText text={item.text} quotes={evidenceQuotes} /> : item.text}</span></p>;
             }) : <p className="transcript-empty">Speech will appear here after the transcription worker joins. Speak clearly in English to test.</p>}
           </div>
-          <p className="transcript-note">Automated text may contain mistakes. Final lines are saved in Call Logs. Threat and scam alerts are not active yet.</p>
+          <p className="transcript-note">Automated text may contain mistakes. Final lines are saved in Call Logs. Caller speech is checked for scam and threat patterns; warnings go to the receiver.</p>
         </div>
         <p className="headphone-hint"><Headphones size={16} />Use headphones when both devices are nearby.</p>
       </aside>
@@ -265,14 +273,14 @@ export default function CallPage() {
       )}
       {joined && !ended && (
         <LiveKitRoom token={joined.token} serverUrl={joined.serverUrl} connect={true} audio={true} video={false} onDisconnected={() => setEnded(true)} onError={(cause) => setError(cause.message)} onMediaDeviceFailure={() => setError("Microphone access failed. Check your browser permission and device settings.")}>
-          <ConnectedCall role={joined.role} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
+          <ConnectedCall roomId={joined.roomId} archiveAccessKey={joined.archiveAccessKey} role={joined.role} onEnd={() => setEnded(true)} onError={setError} onInvite={joined.role === "caller" && inviteUrl ? openInvite : undefined} />
         </LiveKitRoom>
       )}
       {ended && (
         <section className="ended-card"><div className="ended-icon"><PhoneOff size={28} /></div><p className="prejoin-eyebrow">CALL FINISHED</p><h1>Call ended</h1><p>Your microphone is disconnected. The transcript remains available in Call Logs.</p><div className="ended-actions"><Link href="/call-logs" className="secondary-button"><FileText size={17} />View Call Logs</Link><Link href="/" className="join-button"><Phone size={19} />Start another call</Link></div></section>
       )}
       {error && !ended && <p className="call-error" role="alert"><Info size={17} />{error}</p>}
-      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><span>Call speech can be transcribed and saved in Call Logs</span></footer>
+      <footer className="call-footer"><span><ShieldCheck size={15} />Signed room invitation</span><span>Call speech can be transcribed, saved in Call Logs, and checked for scam and threat patterns</span></footer>
       <dialog ref={inviteDialog} className="invite-dialog" aria-labelledby="invite-title" aria-describedby="invite-description">
         <button className="dialog-close" onClick={() => inviteDialog.current?.close()} aria-label="Close invitation"><X size={21} /></button>
         <span className="invite-dialog-icon"><UserPlus size={25} /></span>

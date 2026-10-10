@@ -20,35 +20,51 @@ logger = logging.getLogger("call-transcriber")
 logging.getLogger("livekit.agents").setLevel(logging.INFO)
 
 
-async def save_segment(room_id: str, speaker: str, text: str) -> None:
+async def post_to_app(path: str, payload: dict, what: str) -> None:
     secret = os.environ.get("TRANSCRIPT_WORKER_SECRET", "")
     app_url = os.environ.get("TRANSCRIPT_APP_URL", "http://127.0.0.1:3000").rstrip("/")
     if len(secret) < 32:
-        logger.error("TRANSCRIPT_WORKER_SECRET is missing; transcript cannot be saved")
+        logger.error("TRANSCRIPT_WORKER_SECRET is missing; %s cannot be saved", what)
         return
-    payload = {
-        "roomId": room_id, "id": str(uuid.uuid4()), "speaker": speaker,
-        "text": text, "at": datetime.now(timezone.utc).isoformat(),
-    }
     timeout = aiohttp.ClientTimeout(total=10)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         for attempt in range(3):
             try:
                 async with session.post(
-                    f"{app_url}/api/internal/transcripts",
+                    f"{app_url}{path}",
                     json=payload,
                     headers={"Authorization": f"Bearer {secret}"},
                 ) as response:
                     if response.status == 200:
                         return
-                    logger.error("Transcript save failed (%s): %s", response.status, await response.text())
+                    logger.error("%s save failed (%s): %s", what, response.status, await response.text())
                     if response.status < 500:
                         return
             except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-                logger.warning("Transcript save attempt %s failed: %s", attempt + 1, exc)
+                logger.warning("%s save attempt %s failed: %s", what, attempt + 1, exc)
             await asyncio.sleep(attempt + 1)
-    logger.error("Transcript segment could not be persisted for room %s", room_id)
+    logger.error("%s could not be persisted for room %s", what, payload.get("roomId"))
 
+
+async def save_segment(room_id: str, speaker: str, text: str) -> None:
+    payload = {
+        "roomId": room_id, "id": str(uuid.uuid4()), "speaker": speaker,
+        "text": text, "at": datetime.now(timezone.utc).isoformat(),
+    }
+    # The app analyses caller segments for scam/threat patterns after saving.
+    await post_to_app("/api/internal/transcripts", payload, "Transcript segment")
+
+
+def role_of(identity: str) -> str:
+    return "caller" if identity.startswith("caller-") else "receiver"
+
+
+async def post_call_event(room_id: str, event_type: str, role: str | None = None) -> None:
+    """Session lifecycle for the call log: participant_joined, participant_left, call_ended."""
+    payload = {"roomId": room_id, "type": event_type, "at": datetime.now(timezone.utc).isoformat()}
+    if role:
+        payload["role"] = role
+    await post_to_app("/api/internal/call-events", payload, "Call event")
 
 class Transcriber(Agent):
     def __init__(self, room_id: str, participant_identity: str):
@@ -58,7 +74,7 @@ class Transcriber(Agent):
 
     async def on_user_turn_completed(self, chat_ctx: llm.ChatContext, new_message: llm.ChatMessage):
         text = (new_message.text_content or "").strip()
-        speaker = "caller" if self.participant_identity.startswith("caller-") else "receiver"
+        speaker = role_of(self.participant_identity)
         if text:
             logger.info("saving final %s transcript segment", speaker)
             await save_segment(self.room_id, speaker, text)
@@ -78,6 +94,7 @@ class MultiUserTranscriber:
             return
         if identity in self.sessions or identity in self.starting:
             return
+        self.track(post_call_event(self.ctx.room.name, "participant_joined", role_of(identity)))
         self.starting.add(identity)
         task = asyncio.create_task(self.start_session(participant))
         self.tasks.add(task)
@@ -110,8 +127,15 @@ class MultiUserTranscriber:
         )
         return identity, session
 
+    def track(self, coroutine) -> None:
+        task = asyncio.create_task(coroutine)
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+
     def on_disconnected(self, participant: rtc.RemoteParticipant):
         self.starting.discard(participant.identity)
+        if participant.identity.startswith(("caller-", "receiver-")):
+            self.track(post_call_event(self.ctx.room.name, "participant_left", role_of(participant.identity)))
         session = self.sessions.pop(participant.identity, None)
         if session:
             task = asyncio.create_task(self.close_session(session))
@@ -127,6 +151,11 @@ class MultiUserTranscriber:
         await session.aclose()
 
     async def aclose(self):
+        # Lets the app finalize the call log and send any end-of-call guardian alert.
+        try:
+            await asyncio.wait_for(post_call_event(self.ctx.room.name, "call_ended"), timeout=15)
+        except asyncio.TimeoutError:
+            logger.warning("call_ended event timed out for room %s", self.ctx.room.name)
         await utils.aio.cancel_and_wait(*self.tasks)
         await asyncio.gather(*(self.close_session(session) for session in self.sessions.values()))
         self.ctx.room.off("participant_connected", self.on_connected)
