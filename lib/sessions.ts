@@ -85,3 +85,13 @@ export function admitArchiveAccess(roomId: string, accessKey: string): boolean {
       Number.isSafeInteger(access.expiresAt) && access.expiresAt > Date.now();
   } catch { return false; }
 }
+
+/** Returns the room ID of a valid, unexpired archive key, or null. */
+export function archiveKeyRoomId(accessKey: string): string | null {
+  if (!accessKey || accessKey.length > 2048) return null;
+  try {
+    const payload = accessKey.split(".")[0];
+    const roomId = (JSON.parse(Buffer.from(payload, "base64url").toString()) as Partial<ArchiveAccess>).roomId;
+    return typeof roomId === "string" && admitArchiveAccess(roomId, accessKey) ? roomId : null;
+  } catch { return null; }
+}

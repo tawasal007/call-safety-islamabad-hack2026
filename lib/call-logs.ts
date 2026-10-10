@@ -7,6 +7,10 @@ export type TranscriptSegment = {
   speaker: "caller" | "receiver";
   text: string;
   at: string;
+  /** Optional language code from the transcription module, e.g. "en" or "ur". */
+  language?: string;
+  /** Optional English translation when the original speech is not English. */
+  translatedText?: string;
 };
 
 const root = path.join(process.cwd(), "data", "call-logs");
