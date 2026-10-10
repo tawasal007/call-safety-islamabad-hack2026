@@ -4,9 +4,11 @@ This is the first working milestone of the Islamabad Hack 2026 web app. It has t
 
 ## Team setup
 
-Clone this repository, install Node.js 24 or newer, then run:
+Install Node.js 24 or newer, then clone and run the app:
 
 ```powershell
+git clone https://github.com/tawasal007/call-safety-islamabad-hack2026.git
+Set-Location call-safety-islamabad-hack2026
 Copy-Item .env.example .env.local
 npm ci
 npm run dev
@@ -14,7 +16,7 @@ npm run dev
 
 Replace the sample values in `.env.local` with your own LiveKit Cloud project URL, API key, and API secret. Generate a fresh `SESSION_SIGNING_SECRET` using the command in `.env.example`. Ask the project owner for access to the shared LiveKit Cloud project if you need to test in the same environment. Never commit `.env.local` or paste API secrets into issues or pull requests. The app opens at **http://localhost:3000**.
 
-Work on a feature branch for each module and open a pull request into `main`. Run `npm run typecheck`, `npm test`, and `npm run build` before requesting review. The current call flow and `/api/rooms` contracts are described below so transcription and detection modules can connect to them without changing room admission.
+To contribute, fork the repository on GitHub, clone your fork, and create a separate branch for your module. Open a pull request from that branch into this repository's `main`. Run `npm run typecheck`, `npm test`, and `npm run build` before requesting review. The current call flow and `/api/rooms` contracts are described below so transcription and detection modules can connect to them without changing room admission.
 
 ## Run locally on Windows
 
